@@ -27,8 +27,8 @@ export default function Navbar({ user, cartCount, onHomeClick, onCartClick, onLo
   return (
     <header className="sticky top-0 z-50 w-full bg-white shadow-sm">
       {/* Top Banner (Utility Nav) */}
-      <div className="bg-gray-100 py-1 hidden sm:block text-xs">
-        <div className="max-w-7xl mx-auto px-4 flex justify-end gap-6 text-gray-600">
+      <div className="bg-gray-100 py-1.5 md:py-1 text-[11px] md:text-xs overflow-x-auto whitespace-nowrap scrollbar-hide">
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-start md:justify-end gap-4 md:gap-6 text-gray-600 min-w-max">
           <a href="#" className="hover:text-lazada-orange transition-colors">SAVE MORE ON APP</a>
           <a href="#" onClick={(e) => { e.preventDefault(); onSellClick(); }} className="hover:text-lazada-orange transition-colors">SELL ON LAZADA</a>
           <a href="#" className="hover:text-lazada-orange transition-colors">CUSTOMER CARE</a>
