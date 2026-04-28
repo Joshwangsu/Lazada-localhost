@@ -1,0 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-lazada-orange: #f36f36;
+  --color-lazada-dark: #0f136e;
+  --color-lazada-bg: #f5f5f5;
+}
+
+body {
+  background-color: var(--color-lazada-bg);
+  color: #333;
+}

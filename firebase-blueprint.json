@@ -1,0 +1,171 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile containing basic info",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "Shop": {
+      "title": "Shop",
+      "description": "Seller shop information",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Product listing",
+      "type": "object",
+      "properties": {
+        "shopId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "stockQty": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["shopId", "categoryId", "name", "price", "stockQty", "createdAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Product Category",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "CartItem": {
+      "title": "Cart Item",
+      "description": "Item in a user's shopping cart",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "quantity", "addedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "User order",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "shopId": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "shopId", "totalAmount", "status", "createdAt"]
+    },
+    "OrderItem": {
+      "title": "Order Item",
+      "description": "Item inside an order",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" }
+      },
+      "required": ["productId", "quantity", "price"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment for an order",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "method": { "type": "string" },
+        "status": { "type": "string" },
+        "amount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "method", "status", "amount", "createdAt"]
+    },
+    "Delivery": {
+      "title": "Delivery",
+      "description": "Delivery information",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "riderId": { "type": "string" },
+        "status": { "type": "string" },
+        "courier": { "type": "string" },
+        "trackingNumber": { "type": "string" },
+        "estimatedDelivery": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "status", "createdAt"]
+    },
+    "Rider": {
+      "title": "Rider",
+      "description": "Delivery rider profile",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "vehicleType": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/users/{userId}/cart/{cartItemId}": {
+      "schema": { "$ref": "#/entities/CartItem" },
+      "description": "User cart items"
+    },
+    "/shops/{shopId}": {
+      "schema": { "$ref": "#/entities/Shop" },
+      "description": "Seller shops"
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Product listings"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Product categories"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "User orders"
+    },
+    "/orders/{orderId}/items/{itemId}": {
+      "schema": { "$ref": "#/entities/OrderItem" },
+      "description": "Order items"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Order payments"
+    },
+    "/deliveries/{deliveryId}": {
+      "schema": { "$ref": "#/entities/Delivery" },
+      "description": "Order deliveries"
+    },
+    "/riders/{riderId}": {
+      "schema": { "$ref": "#/entities/Rider" },
+      "description": "Delivery riders"
+    }
+  }
+}
