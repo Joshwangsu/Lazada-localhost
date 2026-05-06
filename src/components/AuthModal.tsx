@@ -1,6 +1,6 @@
-import { X, EyeOff, QrCode, Smartphone } from 'lucide-react';
+import { X, EyeOff, QrCode, Smartphone, Eye } from 'lucide-react';
 import React, { useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, googleProvider, handleFirestoreError, OperationType, db } from '../firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -36,12 +36,67 @@ interface AuthModalProps {
 export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  
+  // Local Email/Pass state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
 
   if (!isOpen) return null;
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose();
+    }
+  };
+
+  const handleEmailSignup = async () => {
+    if (!email || !password || !name) {
+      setErrorMsg('Please fill in all fields');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setErrorMsg('');
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Update display name
+      await updateProfile(result.user, {
+        displayName: name
+      });
+
+      const userRef = doc(db, 'users', result.user.uid);
+      await setDoc(userRef, {
+        email: email,
+        displayName: name,
+        createdAt: serverTimestamp()
+      });
+      
+      onClose();
+    } catch (error: any) {
+      setErrorMsg(error.message);
+      handleFirestoreError(error, OperationType.CREATE, 'users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEmailLogin = async () => {
+    if (!email || !password) {
+      setErrorMsg('Please fill in both email and password');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setErrorMsg('');
+      await signInWithEmailAndPassword(auth, email, password);
+      onClose();
+    } catch (error: any) {
+      setErrorMsg('Invalid email or password');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -98,14 +153,18 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
             {/* Login Form */}
             <div className="space-y-4 mb-2">
               <input 
-                type="text" 
-                placeholder="Please enter your Phone or Email" 
+                type="email" 
+                placeholder="Please enter your email" 
+                value={email}
+                onChange={e => setEmail(e.target.value)}
                 className="w-full border border-gray-300 rounded px-3 py-3 outline-none focus:border-lazada-orange text-[15px] transition-colors" 
               />
               <div className="relative">
                 <input 
                   type="password" 
                   placeholder="Please enter your password" 
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
                   className="w-full border border-gray-300 rounded px-3 py-3 outline-none focus:border-lazada-orange text-[15px] transition-colors" 
                 />
                 <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer" size={20} strokeWidth={1.5} />
@@ -118,7 +177,11 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
               <a href="#" className="text-sm text-gray-500 hover:text-lazada-orange transition-colors">Forgot password?</a>
             </div>
 
-            <button className="w-full bg-lazada-orange text-white font-bold py-3.5 rounded text-[15px] mb-4 hover:bg-[#e06633] transition-colors shadow-sm">
+            <button 
+              className="w-full bg-lazada-orange text-white font-bold py-3.5 rounded text-[15px] mb-4 hover:bg-[#e06633] transition-colors shadow-sm disabled:opacity-50"
+              onClick={handleEmailLogin}
+              disabled={loading}
+            >
               LOGIN
             </button>
 
@@ -156,18 +219,36 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
             </div>
 
             {/* Signup Form */}
-            <div className="flex gap-3 mb-5">
-              <div className="border border-gray-300 rounded px-3 py-3 text-[15px] flex items-center justify-center bg-gray-50 w-[100px] shrink-0 text-gray-800 font-medium">
-                PH+63
-              </div>
+            <div className="space-y-4 mb-2">
               <input 
                 type="text" 
-                placeholder="Please enter your phone number" 
+                placeholder="Please enter your Name" 
+                value={name}
+                onChange={e => setName(e.target.value)}
                 className="w-full border border-gray-300 rounded px-3 py-3 outline-none focus:border-lazada-orange text-[15px] transition-colors" 
               />
+              <input 
+                type="email" 
+                placeholder="Please enter your email" 
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-3 outline-none focus:border-lazada-orange text-[15px] transition-colors" 
+              />
+              <div className="relative">
+                <input 
+                  type="password" 
+                  placeholder="Please enter your password" 
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-3 outline-none focus:border-lazada-orange text-[15px] transition-colors" 
+                />
+                <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer" size={20} strokeWidth={1.5} />
+              </div>
             </div>
 
-            <div className="flex items-start gap-3 mb-6">
+            {errorMsg && <div className="bg-red-50 text-red-500 p-3 rounded mb-4 text-sm">{errorMsg}</div>}
+
+            <div className="flex items-start gap-3 mb-6 mt-4">
               <input 
                 type="checkbox" 
                 id="terms"
@@ -180,14 +261,12 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
               </label>
             </div>
 
-            <button className="w-full bg-lazada-orange text-white font-bold py-3.5 rounded text-[15px] mb-3 flex items-center justify-center gap-2 hover:bg-[#e06633] transition-colors shadow-sm">
-              <Smartphone size={18} strokeWidth={2} /> 
-              Send code via SMS
-            </button>
-            
-            <button className="w-full bg-white text-lazada-orange border border-lazada-orange font-bold py-3 rounded text-[15px] mb-8 flex items-center justify-center gap-2 hover:bg-orange-50 transition-colors">
-              <WhatsappIcon />
-              Send code via Whatsapp
+            <button 
+              className="w-full bg-lazada-orange text-white font-bold py-3.5 rounded text-[15px] mb-3 flex items-center justify-center gap-2 hover:bg-[#e06633] transition-colors shadow-sm disabled:opacity-50"
+              onClick={handleEmailSignup}
+              disabled={loading}
+            >
+              Sign up
             </button>
 
             <div className="text-center text-[15px] text-gray-500 mb-8">
