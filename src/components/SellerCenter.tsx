@@ -30,12 +30,15 @@ import {
 import ManageProducts from './ManageProducts';
 import AddProduct from './AddProduct';
 import SellerDashboard from './SellerDashboard';
+import PickUpAddress from './PickUpAddress';
 
 interface SellerCenterProps {
   onBackToMain: () => void;
+  onLogout: () => void;
+  user?: any;
 }
 
-export default function SellerCenter({ onBackToMain }: SellerCenterProps) {
+export default function SellerCenter({ onBackToMain, onLogout, user }: SellerCenterProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showBanner, setShowBanner] = useState(true);
   const [activePage, setActivePage] = useState('dashboard');
@@ -91,7 +94,15 @@ export default function SellerCenter({ onBackToMain }: SellerCenterProps) {
         { id: 'finance', icon: Wallet, label: 'Finance', hasArrow: true },
         { id: 'data-insight', icon: BarChart2, label: 'Data Insight', hasArrow: true },
         { id: 'service-center', icon: HeadphonesIcon, label: 'Service Center', hasArrow: true },
-        { id: 'setting', icon: Settings, label: 'Setting', hasArrow: true },
+        { 
+          id: 'setting', 
+          icon: Settings, 
+          label: 'Setting', 
+          hasArrow: true,
+          subItems: [
+            { id: 'pickup-address', label: 'Pick-Up Address' }
+          ]
+        },
       ]
     }
   ];
@@ -117,7 +128,7 @@ export default function SellerCenter({ onBackToMain }: SellerCenterProps) {
         {/* Logo Area */}
         <div className="h-[60px] flex items-center px-4 shrink-0">
           {sidebarOpen ? (
-            <div className="flex items-center gap-2 cursor-pointer w-full" onClick={onBackToMain}>
+            <div className="flex items-center gap-2 cursor-pointer w-full" onClick={() => handleNavigate('dashboard')}>
               <svg width="28" height="24" viewBox="0 0 40 35" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
                 <path d="M20 32L3 21V9L11.5 3.5L20 10L28.5 3.5L37 9V21L20 32Z" fill="#2525F5"/>
               </svg>
@@ -127,7 +138,7 @@ export default function SellerCenter({ onBackToMain }: SellerCenterProps) {
               </div>
             </div>
           ) : (
-            <svg width="28" height="24" viewBox="0 0 40 35" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 mx-auto cursor-pointer" onClick={onBackToMain}>
+            <svg width="28" height="24" viewBox="0 0 40 35" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 mx-auto cursor-pointer" onClick={() => handleNavigate('dashboard')}>
               <path d="M20 32L3 21V9L11.5 3.5L20 10L28.5 3.5L37 9V21L20 32Z" fill="#2525F5"/>
             </svg>
           )}
@@ -272,7 +283,7 @@ export default function SellerCenter({ onBackToMain }: SellerCenterProps) {
         
         {/* Mobile Header */}
         <div className="md:hidden bg-white h-[60px] flex items-center justify-between px-4 border-b border-gray-200 shrink-0 shadow-sm z-10 w-full relative">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={onBackToMain}>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleNavigate('dashboard')}>
             <svg width="28" height="24" viewBox="0 0 40 35" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
               <path d="M20 32L3 21V9L11.5 3.5L20 10L28.5 3.5L37 9V21L20 32Z" fill="#2525F5"/>
             </svg>
@@ -283,7 +294,7 @@ export default function SellerCenter({ onBackToMain }: SellerCenterProps) {
           </div>
           <div className="flex items-center gap-2">
             <button 
-              onClick={onBackToMain}
+              onClick={onLogout}
               className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-medium flex items-center gap-1"
             >
               <LogOut className="w-5 h-5" /> 
@@ -311,9 +322,10 @@ export default function SellerCenter({ onBackToMain }: SellerCenterProps) {
         )}
 
         {/* Main Content Area Routing */}
-        {activePage === 'dashboard' && <SellerDashboard />}
-        {activePage === 'manage-products' && <ManageProducts onNavigate={handleNavigate} />}
-        {activePage === 'add-product' && <AddProduct onNavigate={handleNavigate} />}
+        {activePage === 'dashboard' && <SellerDashboard onNavigate={handleNavigate} />}
+        {activePage === 'manage-products' && <ManageProducts onNavigate={handleNavigate} user={user} />}
+        {activePage === 'add-product' && <AddProduct onNavigate={handleNavigate} user={user} />}
+        {activePage === 'pickup-address' && <PickUpAddress onNavigate={handleNavigate} />}
       </div>
 
       {/* RIGHT FLOATING MENU */}
@@ -340,7 +352,7 @@ export default function SellerCenter({ onBackToMain }: SellerCenterProps) {
 
         <div className="flex flex-col items-center gap-4 pb-2">
            <button 
-             onClick={onBackToMain}
+             onClick={onLogout}
              className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-lg transition-colors" title="Log Out / Exit"
            >
              <LogOut className="w-5 h-5" />

@@ -1,27 +1,24 @@
 import React from 'react';
 import { ShoppingCart, Search, User, Bell, LogOut } from 'lucide-react';
-import type { User as FirebaseUser } from 'firebase/auth';
-import { auth } from '../firebase';
-import { signOut } from 'firebase/auth';
 
 export interface NavbarProps {
-  user?: FirebaseUser | null;
+  user?: any | null;
   cartCount: number;
   onHomeClick: () => void;
   onCartClick: () => void;
   onLoginClick: () => void;
   onSignupClick: () => void;
   onSellClick: () => void;
+  onAccountClick: () => void;
 }
 
-export default function Navbar({ user, cartCount, onHomeClick, onCartClick, onLoginClick, onSignupClick, onSellClick }: NavbarProps) {
-  const handleLogout = async (e: React.MouseEvent) => {
+export default function Navbar({ user, cartCount, onHomeClick, onCartClick, onLoginClick, onSignupClick, onSellClick, onAccountClick }: NavbarProps) {
+  const handleLogout = (e: React.MouseEvent) => {
     e.preventDefault();
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error('Error signing out', error);
-    }
+    e.stopPropagation();
+    localStorage.removeItem('buyerToken');
+    localStorage.removeItem('buyerUser');
+    window.location.reload();
   };
 
   return (
@@ -35,7 +32,12 @@ export default function Navbar({ user, cartCount, onHomeClick, onCartClick, onLo
           <a href="#" className="hover:text-lazada-orange transition-colors">TRACK MY ORDER</a>
           {user ? (
             <div className="flex items-center gap-4">
-              <span className="text-lazada-dark font-medium">Hello, {user.displayName || user.email}</span>
+              <span 
+                className="text-lazada-dark font-medium cursor-pointer hover:text-lazada-orange transition-colors"
+                onClick={onAccountClick}
+              >
+                Hello, {user.name || user.email}
+              </span>
               <a href="#" onClick={handleLogout} className="hover:text-lazada-orange transition-colors flex items-center gap-1">
                 <LogOut size={12} /> LOGOUT
               </a>
@@ -94,7 +96,7 @@ export default function Navbar({ user, cartCount, onHomeClick, onCartClick, onLo
             <button className="hover:text-lazada-orange transition-colors hidden sm:block">
               <Bell size={24} />
             </button>
-            <button className="hover:text-lazada-orange transition-colors hidden sm:block">
+            <button onClick={onAccountClick} className="hover:text-lazada-orange transition-colors hidden sm:block">
               <User size={24} />
             </button>
           </div>

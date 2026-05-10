@@ -1,8 +1,5 @@
 import { X, EyeOff, QrCode, Smartphone, Eye } from 'lucide-react';
 import React, { useState } from 'react';
-import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth, googleProvider, handleFirestoreError, OperationType, db } from '../firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const GoogleIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -20,20 +17,15 @@ const FacebookIcon = () => (
   </svg>
 );
 
-const WhatsappIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#25D366" xmlns="http://www.w3.org/2000/svg" className="mr-1">
-    <path d="M12.03 2.01c-5.5 0-9.98 4.47-9.98 9.97 0 1.94.52 3.82 1.5 5.51L2 22l4.63-1.46c1.63.92 3.49 1.41 5.4 1.41 5.49 0 9.97-4.48 9.97-9.97 0-5.5-4.48-9.97-9.97-9.97zM18.15 16.5c-.32.91-1.63 1.74-2.58 1.94-.85.17-1.89.37-3.66-.46-3.07-1.44-5.06-4.59-5.21-4.79-.15-.2-1.25-1.65-1.25-3.15s.8-2.27 1.09-2.55c.27-.27.59-.34.79-.34.2 0 .4.01.59.01.21.01.49-.07.74.52.27.64.91 2.22.99 2.38.08.16.14.34.04.54s-.15.31-.3.46l-.42.48c-.14.15-.29.31-.13.58.16.27.72 1.18 1.55 1.91 1.07.95 1.97 1.25 2.24 1.39.27.14.43.12.59-.06s.69-.79.87-1.07c.18-.28.36-.23.61-.14M18 15.68" fill="#25D366"/>
-  </svg>
-);
-
 interface AuthModalProps {
   isOpen: boolean;
   view: 'login' | 'signup';
   onClose: () => void;
   onSwitchView: (view: 'login' | 'signup') => void;
+  onSuccess: (user: any) => void;
 }
 
-export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthModalProps) {
+export default function AuthModal({ isOpen, view, onClose, onSwitchView, onSuccess }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   
@@ -59,24 +51,24 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
     try {
       setLoading(true);
       setErrorMsg('');
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      
-      // Update display name
-      await updateProfile(result.user, {
-        displayName: name
+      const response = await fetch('http://localhost:5000/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, role: 'buyer' })
       });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sign up');
+      }
 
-      const userRef = doc(db, 'users', result.user.uid);
-      await setDoc(userRef, {
-        email: email,
-        displayName: name,
-        createdAt: serverTimestamp()
-      });
-      
+      localStorage.setItem('buyerToken', data.token);
+      localStorage.setItem('buyerUser', JSON.stringify(data.user));
+      onSuccess(data.user);
       onClose();
     } catch (error: any) {
       setErrorMsg(error.message);
-      handleFirestoreError(error, OperationType.CREATE, 'users');
     } finally {
       setLoading(false);
     }
@@ -91,38 +83,28 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
     try {
       setLoading(true);
       setErrorMsg('');
-      await signInWithEmailAndPassword(auth, email, password);
-      onClose();
-    } catch (error: any) {
-      setErrorMsg('Invalid email or password');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to log in');
+      }
 
-  const handleGoogleAuth = async () => {
-    try {
-      setLoading(true);
-      setErrorMsg('');
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (!userSnap.exists()) {
-        await setDoc(userRef, {
-          email: user.email,
-          displayName: user.displayName || 'Lazada User',
-          createdAt: serverTimestamp()
-        });
+      if (data.user.role === 'seller') {
+        throw new Error('Please log in through the Seller Center.');
       }
+
+      localStorage.setItem('buyerToken', data.token);
+      localStorage.setItem('buyerUser', JSON.stringify(data.user));
+      onSuccess(data.user);
       onClose();
     } catch (error: any) {
-      if (error.code !== 'auth/popup-closed-by-user') {
-        setErrorMsg('Authentication failed. Please try again.');
-        handleFirestoreError(error, OperationType.CREATE, 'users');
-      }
+      setErrorMsg(error.message);
     } finally {
       setLoading(false);
     }
@@ -137,7 +119,6 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
         
         {view === 'login' ? (
           <>
-            {/* Login Header */}
             <div className="flex items-center justify-between mb-8 relative">
               <QrCode className="text-gray-500 cursor-pointer absolute left-0" size={24} strokeWidth={1.5} />
               <div className="flex items-center gap-4 mx-auto pt-1">
@@ -150,7 +131,6 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
               </button>
             </div>
 
-            {/* Login Form */}
             <div className="space-y-4 mb-2">
               <input 
                 type="email" 
@@ -188,19 +168,14 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
             <div className="text-center text-sm text-gray-500 mb-8">
               Don't have an account? <span onClick={() => onSwitchView('signup')} className="text-blue-600 cursor-pointer hover:underline font-medium">Sign up</span>
             </div>
-
-            {/* Login Footer */}
+            
             <div className="text-center text-sm text-gray-500 mb-5 relative">
               <span className="bg-white px-2 relative z-10">Or, login with</span>
               <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 border-t border-gray-100 z-0"></div>
             </div>
 
             <div className="flex justify-center gap-4">
-              <button 
-                onClick={handleGoogleAuth}
-                disabled={loading}
-                className="flex items-center justify-center gap-2 text-gray-600 font-medium hover:bg-gray-50 flex-1 py-2.5 border border-gray-200 rounded text-sm transition-colors disabled:opacity-50"
-              >
+              <button disabled className="flex items-center justify-center gap-2 text-gray-600 font-medium hover:bg-gray-50 flex-1 py-2.5 border border-gray-200 rounded text-sm transition-colors opacity-50 cursor-not-allowed">
                 <GoogleIcon /> Google
               </button>
               <button disabled className="flex items-center justify-center gap-2 text-gray-600 font-medium hover:bg-gray-50 flex-1 py-2.5 border border-gray-200 rounded text-sm transition-colors opacity-50 cursor-not-allowed">
@@ -210,7 +185,6 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
           </>
         ) : (
           <>
-            {/* Signup Header */}
             <div className="flex items-center justify-center mb-8 relative pt-1">
               <span className="font-bold text-gray-800 text-xl">Sign up</span>
               <button onClick={onClose} className="absolute right-0 text-gray-400 hover:text-gray-600 transition-colors">
@@ -218,7 +192,6 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
               </button>
             </div>
 
-            {/* Signup Form */}
             <div className="space-y-4 mb-2">
               <input 
                 type="text" 
@@ -273,18 +246,13 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
               Already have an account? <span onClick={() => onSwitchView('login')} className="text-blue-600 cursor-pointer hover:underline font-medium">Log in Now</span>
             </div>
 
-            {/* Signup Footer */}
             <div className="text-center text-sm text-gray-500 mb-5 relative">
               <span className="bg-white px-2 relative z-10">Or, sign up with</span>
               <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 border-t border-gray-100 z-0"></div>
             </div>
 
             <div className="flex justify-center gap-4">
-              <button 
-                onClick={handleGoogleAuth}
-                disabled={loading}
-                className="flex items-center justify-center gap-2 text-gray-600 font-medium hover:bg-gray-50 flex-1 py-2.5 border border-gray-200 rounded text-sm transition-colors disabled:opacity-50"
-              >
+              <button disabled className="flex items-center justify-center gap-2 text-gray-600 font-medium hover:bg-gray-50 flex-1 py-2.5 border border-gray-200 rounded text-sm transition-colors opacity-50 cursor-not-allowed">
                 <GoogleIcon /> Google
               </button>
               <button disabled className="flex items-center justify-center gap-2 text-gray-600 font-medium hover:bg-gray-50 flex-1 py-2.5 border border-gray-200 rounded text-sm transition-colors opacity-50 cursor-not-allowed">
@@ -293,7 +261,6 @@ export default function AuthModal({ isOpen, view, onClose, onSwitchView }: AuthM
             </div>
           </>
         )}
-
       </div>
     </div>
   );

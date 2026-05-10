@@ -22,6 +22,7 @@ import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 interface SellerLandingProps {
   onBackToMain: () => void;
   onLoginClick: () => void;
+  onSuccess: (user: any) => void;
 }
 
 const GoogleIcon = () => (
@@ -33,7 +34,7 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export default function SellerLanding({ onBackToMain, onLoginClick }: SellerLandingProps) {
+export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }: SellerLandingProps) {
   const [activeTab, setActiveTab] = useState<'voice' | 'sms'>('sms');
   const [authMode, setAuthMode] = useState<'signup' | 'login'>('signup');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -68,27 +69,21 @@ export default function SellerLanding({ onBackToMain, onLoginClick }: SellerLand
     try {
       setLoading(true);
       setAuthError(null);
-      const { createUserWithEmailAndPassword, updateProfile } = await import('firebase/auth');
-      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-      const { db, handleFirestoreError, OperationType } = await import('../firebase');
       
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      
-      await updateProfile(result.user, {
-        displayName: name
+      const response = await fetch('http://localhost:5000/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, role: 'seller' }),
       });
 
-      const userRef = doc(db, 'users', result.user.uid);
-      await setDoc(userRef, {
-        email: email,
-        displayName: name,
-        createdAt: serverTimestamp()
-      });
-      // App.tsx handles onAuthStateChanged
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Signup failed');
+
+      localStorage.setItem('sellerToken', data.token);
+      localStorage.setItem('sellerUser', JSON.stringify(data.user));
+      onSuccess(data.user);
     } catch (error: any) {
       setAuthError(error.message);
-      const { handleFirestoreError, OperationType } = await import('../firebase');
-      handleFirestoreError(error, OperationType.CREATE, 'users');
     } finally {
       setLoading(false);
     }
@@ -104,11 +99,26 @@ export default function SellerLanding({ onBackToMain, onLoginClick }: SellerLand
     try {
       setLoading(true);
       setAuthError(null);
-      const { signInWithEmailAndPassword } = await import('firebase/auth');
-      await signInWithEmailAndPassword(auth, email, password);
-      // App.tsx handles onAuthStateChanged
+      
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Login failed');
+
+      // Verify if the user is actually a seller
+      if (data.user.role !== 'seller') {
+         throw new Error('Only seller accounts can log in here.');
+      }
+
+      localStorage.setItem('sellerToken', data.token);
+      localStorage.setItem('sellerUser', JSON.stringify(data.user));
+      onSuccess(data.user);
     } catch (error: any) {
-      setAuthError('Invalid email or password');
+      setAuthError(error.message);
     } finally {
       setLoading(false);
     }

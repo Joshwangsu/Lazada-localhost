@@ -1,20 +1,117 @@
-import React from 'react';
-import { ChevronRight, Info, Plus } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronRight, Upload, X } from 'lucide-react';
 
-export default function AddProduct({ onNavigate }: { onNavigate: (page: string) => void }) {
+interface AddProductProps {
+  onNavigate: (page: string) => void;
+  user: any;
+}
+
+export default function AddProduct({ onNavigate, user }: AddProductProps) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+  const [price, setPrice] = useState('');
+  const [stock, setStock] = useState('');
+  const [description, setDescription] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/categories')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setCategories(data);
+          setCategory(data[0].Ctgry_Id.toString());
+        }
+      })
+      .catch(err => console.error('Failed to fetch categories', err));
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("File is too large. Please upload an image smaller than 5MB.");
+        return;
+      }
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !price) {
+      alert("Product Name and Price are required.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+
+      // Use FormData so we can upload the file
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('categoryId', category);
+      formData.append('price', price);
+      formData.append('stock', stock || '0');
+      formData.append('description', description);
+      formData.append('userId', user.id.toString());
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+
+      const response = await fetch('http://localhost:5000/api/products', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+          // Do NOT set Content-Type — browser sets it with boundary for FormData
+        },
+        body: formData
+      });
+
+      let data;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(text.slice(0, 150) || 'Server returned a non-JSON response');
+      }
+
+      if (!response.ok) throw new Error(data.error || 'Failed to add product');
+
+      alert("Product added successfully!");
+      onNavigate('manage-products');
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:px-10 scrollbar-hide flex flex-col gap-6 font-sans bg-[#F2F3F8]">
       
       {/* Breadcrumb & Header */}
       <div className="flex flex-col gap-4">
         <div className="text-gray-500 text-[13px] flex items-center gap-2">
-          <span className="cursor-pointer hover:underline">Home</span>
+          <span className="cursor-pointer hover:underline" onClick={() => onNavigate('dashboard')}>Home</span>
           <ChevronRight className="w-3.5 h-3.5" />
           <span className="cursor-pointer hover:underline" onClick={() => onNavigate('manage-products')}>Manage Products</span>
           <ChevronRight className="w-3.5 h-3.5" />
           <span className="font-medium text-gray-800">Add Product</span>
         </div>
-        
         <h1 className="text-2xl font-bold text-gray-800">Add Product</h1>
       </div>
 
@@ -23,16 +120,48 @@ export default function AddProduct({ onNavigate }: { onNavigate: (page: string) 
         <div className="flex-1 flex flex-col gap-4">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="p-6">
-              <h2 className="text-lg font-bold text-gray-800 mb-6 font-sans">Basic Information</h2>
+              <h2 className="text-lg font-bold text-gray-800 mb-6">Basic Information</h2>
               
-              <div className="space-y-6">
-                {/* Product Images */}
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Image Upload */}
                 <div>
                   <label className="flex items-center gap-1 text-[13px] font-medium text-gray-800 mb-2">
-                    <span className="text-red-500">*</span> Product Images <Info className="w-3.5 h-3.5 text-gray-400" />
+                    Product Image <span className="text-gray-400 font-normal ml-1">(Optional)</span>
                   </label>
-                  <div className="w-24 h-24 border border-dashed border-gray-300 rounded flex flex-col items-center justify-center text-gray-400 hover:border-[#1e61f9] hover:text-[#1e61f9] cursor-pointer bg-gray-50 transition-colors">
-                    <Plus className="w-8 h-8 mb-1 opacity-60" />
+                  
+                  <div className="flex items-center gap-4">
+                    {imagePreview ? (
+                      <div className="relative w-32 h-32 rounded-lg border border-gray-200 overflow-hidden group">
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                        <button 
+                          type="button"
+                          onClick={removeImage}
+                          className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-[#1e61f9] hover:text-[#1e61f9] cursor-pointer bg-gray-50 transition-all group"
+                      >
+                        <Upload className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" />
+                        <span className="text-[11px] font-medium text-center px-2">Upload Photo</span>
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <div className="text-[12px] text-gray-400 space-y-1">
+                      <p>• Supported: JPG, PNG, WEBP</p>
+                      <p>• Max size: 5MB</p>
+                      <p>• Best ratio: 1:1 (Square)</p>
+                    </div>
                   </div>
                 </div>
 
@@ -44,13 +173,14 @@ export default function AddProduct({ onNavigate }: { onNavigate: (page: string) 
                   <div className="relative">
                     <input 
                       type="text" 
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      maxLength={255}
                       placeholder="Ex. Nikon Coolpix A300 Digital Camera" 
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors"
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors pr-20"
                     />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 text-[12px] text-gray-400">
-                      <span>0/255</span>
-                      <span className="text-gray-300 cursor-not-allowed">Re-Generate</span>
-                    </div>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-gray-400">{name.length}/255</span>
                   </div>
                 </div>
 
@@ -59,42 +189,87 @@ export default function AddProduct({ onNavigate }: { onNavigate: (page: string) 
                   <label className="flex items-center gap-1 text-[13px] font-medium text-gray-800 mb-2">
                     <span className="text-red-500">*</span> Category
                   </label>
-                  <div className="relative cursor-pointer">
+                  <select 
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors bg-white"
+                  >
+                    {categories.length === 0 && <option disabled>Loading categories...</option>}
+                    {categories.map(c => (
+                      <option key={c.Ctgry_Id} value={c.Ctgry_Id}>{c.Ctgry_Name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Price and Stock */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="flex items-center gap-1 text-[13px] font-medium text-gray-800 mb-2">
+                      <span className="text-red-500">*</span> Price (PHP)
+                    </label>
                     <input 
-                      type="text" 
-                      placeholder="Please select category or search with keyword" 
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors bg-white cursor-pointer"
-                      readOnly
+                      type="number" 
+                      required
+                      min="0"
+                      step="0.01"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      placeholder="0.00" 
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors"
                     />
-                    <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 rotate-90" />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1 text-[13px] font-medium text-gray-800 mb-2">
+                      Stock Quantity
+                    </label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      value={stock}
+                      onChange={(e) => setStock(e.target.value)}
+                      placeholder="0" 
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors"
+                    />
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex items-center justify-between">
-            <p className="text-[12px] text-gray-500">
-              Please upload your product image and the AI Services will auto-generate title, category and other content recommendations to help complete your listing. Subject to <a href="#" className="text-[#1e61f9] hover:underline">AI Services Terms</a>.
-            </p>
-            <button className="bg-gray-100 text-gray-400 px-6 py-2 rounded text-[13px] font-medium cursor-not-allowed whitespace-nowrap">
-              Next: Complete Product Info
-            </button>
+                {/* Description */}
+                <div>
+                  <label className="flex items-center gap-1 text-[13px] font-medium text-gray-800 mb-2">
+                    Description
+                  </label>
+                  <textarea 
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Describe your product..." 
+                    rows={4}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors resize-none"
+                  ></textarea>
+                </div>
+
+                <div className="pt-4 flex justify-end">
+                  <button 
+                    type="submit" 
+                    disabled={loading}
+                    className="bg-[#1e61f9] hover:bg-blue-700 text-white px-8 py-2.5 rounded text-[14px] font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                    {loading ? 'Submitting...' : 'Submit & Publish'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
 
         {/* Right Sidebar - Tips */}
-        <div className="w-[300px] shrink-0 bg-white rounded-lg shadow-sm border border-gray-200 p-6 hidden lg:block sticky top-6">
-          <div className="flex items-center gap-2 text-[#1e61f9] font-bold mb-3">
-             <span className="text-base tracking-wide">Tips</span>
-             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-20 ml-auto">
-               <path d="M12 2C8.68629 2 6 4.68629 6 8C6 10.1583 7.13524 12.0468 8.78461 13.111C9.64692 13.6677 10 14.6191 10 15.6429V17C10 17.5523 10.4477 18 11 18H13C13.5523 18 14 17.5523 14 17V15.6429C14 14.6191 14.3531 13.6677 15.2154 13.111C16.8648 12.0468 18 10.1583 18 8C18 4.68629 15.3137 2 12 2Z" fill="currentColor"/>
-               <path d="M10 20H14V21C14 21.5523 13.5523 22 13 22H11C10.4477 22 10 21.5523 10 21V20Z" fill="currentColor"/>
-             </svg>
+        <div className="w-[280px] shrink-0 bg-white rounded-lg shadow-sm border border-gray-200 p-6 hidden lg:block sticky top-6">
+          <div className="font-bold text-[#1e61f9] mb-3 text-base">Tips</div>
+          <div className="text-[13px] text-gray-600 space-y-2">
+            <p>• Product images are optional but highly recommended.</p>
+            <p>• Choose the correct category so buyers can find your product.</p>
+            <p>• A detailed description helps answer buyer questions.</p>
           </div>
-          <p className="text-[13px] text-gray-600 leading-relaxed">
-            Please make sure to upload product images(s), fill product name, and select the correct category to publish a product.
-          </p>
         </div>
       </div>
     </div>

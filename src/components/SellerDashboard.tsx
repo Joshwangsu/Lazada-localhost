@@ -1,7 +1,11 @@
 import React from 'react';
 import { ChevronRight, RefreshCw, Bot, CheckCircle2, FileText, MapPin, MessageCircle, Plus } from 'lucide-react';
 
-export default function SellerDashboard() {
+interface SellerDashboardProps {
+  onNavigate?: (page: string) => void;
+}
+
+export default function SellerDashboard({ onNavigate }: SellerDashboardProps) {
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:px-10 scrollbar-hide flex flex-col gap-6">
       
@@ -63,7 +67,7 @@ export default function SellerDashboard() {
                   <p className="text-gray-500 text-xs sm:text-[13px]">Use the pin feature to quickly add your pickup address for order fulfillment.</p>
                 </div>
              </div>
-             <button className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded-md text-sm font-medium transition-colors w-full sm:w-auto">Get Started</button>
+             <button onClick={() => onNavigate && onNavigate('pickup-address')} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded-md text-sm font-medium transition-colors w-full sm:w-auto">Get Started</button>
           </div>
 
           {/* Step 3 */}

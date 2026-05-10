@@ -1,18 +1,64 @@
-import React, { useState } from 'react';
-import { ChevronDown, Search, Info, Plus, ChevronRight, Inbox } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronDown, Search, Info, Plus, ChevronRight, Inbox, Edit, Trash2 } from 'lucide-react';
 
-export default function ManageProducts({ onNavigate }: { onNavigate: (page: string) => void }) {
-  const [activeTab, setActiveTab] = useState('Active');
+interface ManageProductsProps {
+  onNavigate: (page: string) => void;
+  user: any;
+}
+
+export default function ManageProducts({ onNavigate, user }: ManageProductsProps) {
+  const [activeTab, setActiveTab] = useState('All');
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const tabs = ['All', 'Active', 'Inactive', 'Draft', 'Pending QC', 'Violation', 'Deleted'];
 
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`http://localhost:5000/api/seller/products/${user.id}`);
+        const data = await response.json();
+        if (response.ok) {
+          setProducts(data);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user?.id) {
+      fetchProducts();
+    }
+  }, [user?.id]);
+
+  const handleDelete = async (productId: number) => {
+    if (!confirm('Are you sure you want to delete this product?')) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/products/${productId}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        setProducts(products.filter(p => p.Prdct_Id !== productId));
+        alert('Product deleted successfully');
+      } else {
+        alert('Failed to delete product');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+    }
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:px-10 scrollbar-hide flex flex-col gap-6 font-sans">
+    <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:px-10 scrollbar-hide flex flex-col gap-6 font-sans bg-[#F2F3F8]">
       
       {/* Breadcrumb & Header */}
       <div className="flex flex-col gap-4">
         <div className="text-gray-500 text-[13px] flex items-center gap-2">
-          <span>Home</span>
+          <span className="cursor-pointer hover:underline" onClick={() => onNavigate('dashboard')}>Home</span>
           <ChevronRight className="w-3.5 h-3.5" />
           <span className="font-medium text-gray-800">Manage Products</span>
         </div>
@@ -20,18 +66,9 @@ export default function ManageProducts({ onNavigate }: { onNavigate: (page: stri
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-800">Manage Products</h1>
           <div className="flex gap-2 text-sm font-medium">
-            <button className="px-4 py-1.5 border border-blue-500 text-blue-600 rounded whitespace-nowrap hover:bg-blue-50">
-              Find Trending Opportunities
-            </button>
-            <button className="px-4 py-1.5 border border-blue-500 text-blue-600 rounded flex items-center gap-1 hover:bg-blue-50">
-              Analysis Tools <ChevronDown className="w-4 h-4" />
-            </button>
-            <button className="px-4 py-1.5 border border-blue-500 text-blue-600 rounded flex items-center gap-1 hover:bg-blue-50">
-              Bulk Manage <ChevronDown className="w-4 h-4" />
-            </button>
             <button 
               onClick={() => onNavigate('add-product')}
-              className="px-4 py-1.5 bg-[#1e61f9] hover:bg-blue-700 text-white rounded flex items-center gap-1 shadow-sm"
+              className="px-4 py-1.5 bg-[#1e61f9] hover:bg-blue-700 text-white rounded flex items-center gap-1 shadow-sm transition-colors"
             >
               <Plus className="w-4 h-4" /> New Product
             </button>
@@ -43,31 +80,14 @@ export default function ManageProducts({ onNavigate }: { onNavigate: (page: stri
       <div className="bg-[#f2f8ff] border border-blue-100 rounded-lg p-3.5 flex items-start gap-2 text-[13px]">
         <Info className="w-4 h-4 text-[#1e61f9] shrink-0 mt-0.5" />
         <div className="flex-1 text-gray-600 space-y-1">
-          <p>Welcome to Product Management Page. <a href="#" className="text-[#1e61f9] hover:underline">Learn more</a> and share more Feedback to us.</p>
-          <p>Your products are not visible to buyers yet. <a href="#" className="hidden"></a><a href="#" className="text-[#1e61f9] hover:underline">Please click here to complete to-do list</a></p>
+          <p>Manage your product listings and monitor their performance. <a href="#" className="text-[#1e61f9] hover:underline">Learn more</a></p>
         </div>
-        <button className="text-gray-400 hover:text-gray-600 shrink-0">
-          ×
-        </button>
       </div>
 
-      {/* Product Overview Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-           <div className="flex items-center gap-4">
-             <span className="font-bold text-gray-800">Product Overview</span>
-             <div className="flex items-center gap-2">
-                <div className="w-32 h-1.5 bg-gray-200 rounded-full"></div>
-                <span className="text-xs text-gray-500">- / 1,000 <Info className="w-3 h-3 inline text-gray-400" /></span>
-             </div>
-           </div>
-           <button className="text-blue-600 text-sm font-medium flex items-center gap-1">
-              Show Details <ChevronDown className="w-4 h-4" />
-           </button>
-        </div>
-
+      {/* Product Table Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         {/* Tabs */}
-        <div className="px-4 border-b border-gray-200 flex gap-6 mt-4">
+        <div className="px-4 border-b border-gray-200 flex gap-6 pt-4">
           {tabs.map((tab, idx) => (
             <button
               key={idx}
@@ -79,70 +99,94 @@ export default function ManageProducts({ onNavigate }: { onNavigate: (page: stri
               }`}
             >
               {tab}
-              {tab === 'Deleted' && (
-                <span className="bg-[#1e61f9] text-white text-[10px] px-1.5 rounded-full font-bold">1</span>
-              )}
             </button>
           ))}
         </div>
 
-        {/* Filters */}
-        <div className="p-4 bg-[#FAFAFC] border-b border-gray-100 flex flex-col gap-3">
-           <div className="flex items-center gap-4 text-sm">
-             <span className="text-gray-500">Filter Product:</span>
-             <button className="px-3 py-1 bg-white border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Out Of Stock</button>
-           </div>
-           
-           <div className="grid grid-cols-3 gap-4">
-             <div className="flex bg-white border border-gray-300 rounded focus-within:border-[#1e61f9] overflow-hidden">
-                <div className="flex items-center gap-1 px-3 border-r border-gray-300 bg-gray-50 text-gray-600 text-[13px] cursor-pointer">
-                  Product Name <ChevronDown className="w-3 h-3" />
-                </div>
-                <input type="text" placeholder="Please Input" className="flex-1 px-3 py-1.5 outline-none text-[13px]" />
-                <button className="px-3 text-gray-400"><Search className="w-4 h-4" /></button>
-             </div>
-             
-             <div className="flex bg-white border border-gray-300 rounded focus-within:border-[#1e61f9] overflow-hidden relative cursor-pointer">
-                <div className="flex items-center gap-1 px-3 border-r border-gray-300 bg-gray-50 text-gray-600 text-[13px]">
-                  Select Category
-                </div>
-                <input type="text" placeholder="Please Select" className="flex-1 px-3 py-1.5 outline-none text-[13px] bg-transparent cursor-pointer" readOnly />
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-             </div>
-
-             <div className="flex bg-white border border-gray-300 rounded focus-within:border-[#1e61f9] overflow-hidden relative cursor-pointer">
-                <div className="flex items-center gap-1 px-3 border-r border-gray-300 bg-gray-50 text-gray-600 text-[13px]">
-                  Sort By
-                </div>
-                <input type="text" placeholder="Please Select" className="flex-1 px-3 py-1.5 outline-none text-[13px] bg-transparent cursor-pointer" readOnly />
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-             </div>
-             
-             <div className="flex bg-white border border-gray-300 rounded focus-within:border-[#1e61f9] overflow-hidden relative cursor-pointer col-span-1">
-                <div className="flex items-center gap-1 px-3 border-r border-gray-300 bg-gray-50 text-gray-600 text-[13px]">
-                  A/B Testing
-                </div>
-                <input type="text" placeholder="Please Select" className="flex-1 px-3 py-1.5 outline-none text-[13px] bg-transparent cursor-pointer" readOnly />
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-             </div>
+        {/* Filters Area */}
+        <div className="p-4 bg-[#FAFAFC] border-b border-gray-100 flex items-center gap-4">
+           <div className="flex-1 flex bg-white border border-gray-300 rounded focus-within:border-[#1e61f9] overflow-hidden">
+              <input type="text" placeholder="Search by product name..." className="flex-1 px-3 py-1.5 outline-none text-[13px]" />
+              <button className="px-3 text-gray-400 border-l border-gray-200"><Search className="w-4 h-4" /></button>
            </div>
         </div>
 
-        {/* Empty State */}
-        <div className="p-20 flex flex-col items-center justify-center text-center">
-           <div className="w-40 h-40 bg-gradient-to-tr from-blue-100 to-purple-100 rounded-full flex items-center justify-center mb-6 relative">
-             <div className="absolute top-1/4 right-1/4 w-3 h-3 bg-blue-500 rounded-full"></div>
-             <div className="absolute top-1/3 left-1/4 w-2 h-2 bg-purple-400 rounded-full"></div>
-             <Inbox className="w-16 h-16 text-blue-500 opacity-80" strokeWidth={1} />
-             {/* A more illustrative icon placeholder to match the reference */}
-             <div className="absolute mt-10 w-24 h-12 bg-white rounded-lg shadow-sm border border-gray-100 flex items-center justify-center">
-                <div className="w-16 h-2 bg-gray-200 rounded-full"></div>
+        {loading ? (
+          <div className="p-20 text-center text-gray-500">Loading products...</div>
+        ) : products.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-[#FAFAFC] border-b border-gray-100">
+                <tr>
+                  <th className="px-6 py-4 text-[13px] font-semibold text-gray-700">Product Info</th>
+                  <th className="px-6 py-4 text-[13px] font-semibold text-gray-700">Category</th>
+                  <th className="px-6 py-4 text-[13px] font-semibold text-gray-700">Price</th>
+                  <th className="px-6 py-4 text-[13px] font-semibold text-gray-700">Stock</th>
+                  <th className="px-6 py-4 text-[13px] font-semibold text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {products.map((product) => (
+                  <tr key={product.Prdct_Id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
+                          <img 
+                            src={product.Prdct_Image_Url || 'https://via.placeholder.com/48'} 
+                            alt={product.Prdct_Name} 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-[13px] font-medium text-gray-800 line-clamp-1">{product.Prdct_Name}</h4>
+                          <span className="text-[11px] text-gray-400">ID: {product.Prdct_Id}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-[13px] text-gray-600">
+                      {product.Ctgry_Name || 'General'}
+                    </td>
+                    <td className="px-6 py-4 text-[13px] font-medium text-gray-800">
+                      ₱{parseFloat(product.Prdct_Price).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 text-[13px] text-gray-600">
+                      {product.Prdct_Stock_Qty}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <button className="text-blue-600 hover:text-blue-800 transition-colors" title="Edit">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(product.Prdct_Id)}
+                          className="text-red-500 hover:text-red-700 transition-colors" 
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          /* Empty State */
+          <div className="p-20 flex flex-col items-center justify-center text-center">
+             <div className="w-40 h-40 bg-gradient-to-tr from-blue-100 to-purple-100 rounded-full flex items-center justify-center mb-6">
+               <Inbox className="w-16 h-16 text-blue-500 opacity-80" strokeWidth={1} />
              </div>
-           </div>
-           <h3 className="text-xl font-bold text-gray-800 mb-2">No product under this status or filter</h3>
-           <p className="text-gray-500 text-sm">Please check other product status or use other filter.</p>
-        </div>
-
+             <h3 className="text-xl font-bold text-gray-800 mb-2">No products found</h3>
+             <p className="text-gray-500 text-sm mb-6">Start selling by adding your first product.</p>
+             <button 
+               onClick={() => onNavigate('add-product')}
+               className="px-6 py-2 bg-[#1e61f9] hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+             >
+               Add Product
+             </button>
+          </div>
+        )}
       </div>
 
     </div>
