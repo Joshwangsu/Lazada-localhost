@@ -4,16 +4,17 @@ import { ChevronRight, Upload, X } from 'lucide-react';
 interface AddProductProps {
   onNavigate: (page: string) => void;
   user: any;
+  editProduct?: any;
 }
 
-export default function AddProduct({ onNavigate, user }: AddProductProps) {
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState('');
-  const [price, setPrice] = useState('');
-  const [stock, setStock] = useState('');
-  const [description, setDescription] = useState('');
+export default function AddProduct({ onNavigate, user, editProduct }: AddProductProps) {
+  const [name, setName] = useState(editProduct?.Prdct_Name || '');
+  const [category, setCategory] = useState(editProduct?.Prdct_CtgryId?.toString() || '');
+  const [price, setPrice] = useState(editProduct?.Prdct_Price?.toString() || '');
+  const [stock, setStock] = useState(editProduct?.Prdct_Stock_Qty?.toString() || '');
+  const [description, setDescription] = useState(editProduct?.Prdct_Description || '');
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(editProduct?.Prdct_Image_Url || null);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -24,7 +25,9 @@ export default function AddProduct({ onNavigate, user }: AddProductProps) {
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
           setCategories(data);
-          setCategory(data[0].Ctgry_Id.toString());
+          if (!editProduct?.Prdct_CtgryId) {
+            setCategory(data[0].Ctgry_Id.toString());
+          }
         }
       })
       .catch(err => console.error('Failed to fetch categories', err));
@@ -71,11 +74,14 @@ export default function AddProduct({ onNavigate, user }: AddProductProps) {
         formData.append('image', imageFile);
       }
 
-      const response = await fetch('http://localhost:5000/api/products', {
-        method: 'POST',
+      const url = editProduct 
+        ? `http://localhost:5000/api/products/${editProduct.Prdct_Id}`
+        : 'http://localhost:5000/api/products';
+        
+      const response = await fetch(url, {
+        method: editProduct ? 'PUT' : 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
-          // Do NOT set Content-Type — browser sets it with boundary for FormData
         },
         body: formData
       });
@@ -89,9 +95,9 @@ export default function AddProduct({ onNavigate, user }: AddProductProps) {
         throw new Error(text.slice(0, 150) || 'Server returned a non-JSON response');
       }
 
-      if (!response.ok) throw new Error(data.error || 'Failed to add product');
+      if (!response.ok) throw new Error(data.error || `Failed to ${editProduct ? 'update' : 'add'} product`);
 
-      alert("Product added successfully!");
+      alert(`Product ${editProduct ? 'updated' : 'added'} successfully!`);
       onNavigate('manage-products');
     } catch (error: any) {
       alert(error.message);
@@ -110,9 +116,9 @@ export default function AddProduct({ onNavigate, user }: AddProductProps) {
           <ChevronRight className="w-3.5 h-3.5" />
           <span className="cursor-pointer hover:underline" onClick={() => onNavigate('manage-products')}>Manage Products</span>
           <ChevronRight className="w-3.5 h-3.5" />
-          <span className="font-medium text-gray-800">Add Product</span>
+          <span className="font-medium text-gray-800">{editProduct ? 'Edit Product' : 'Add Product'}</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-800">Add Product</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{editProduct ? 'Edit Product' : 'Add Product'}</h1>
       </div>
 
       <div className="flex gap-6 items-start">
@@ -251,10 +257,9 @@ export default function AddProduct({ onNavigate, user }: AddProductProps) {
                   <button 
                     type="submit" 
                     disabled={loading}
-                    className="bg-[#1e61f9] hover:bg-blue-700 text-white px-8 py-2.5 rounded text-[14px] font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                    className="px-6 py-2.5 bg-[#1e61f9] hover:bg-blue-700 text-white rounded-sm font-medium transition-colors disabled:opacity-50 min-w-[120px]"
                   >
-                    {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                    {loading ? 'Submitting...' : 'Submit & Publish'}
+                    {loading ? (editProduct ? 'Updating...' : 'Publishing...') : (editProduct ? 'Update Product' : 'Publish Product')}
                   </button>
                 </div>
               </form>

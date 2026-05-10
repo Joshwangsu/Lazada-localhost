@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MapPin, Search, Store } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Search, Store, ChevronLeft, Truck, Package, CheckCircle2 } from 'lucide-react';
 
 interface UserAccountProps {
   user: any;
@@ -23,6 +23,51 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
   const [label, setLabel] = useState<'OFFICE' | 'HOME'>('HOME');
 
   const [isSaving, setIsSaving] = useState(false);
+  
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (currentView === 'orders' && user?.id) {
+      setLoadingOrders(true);
+      fetch(`http://localhost:5000/api/orders?userId=${user.id}`)
+        .then(res => res.json())
+        .then(data => {
+          setOrders(data);
+          setLoadingOrders(false);
+        })
+        .catch(err => {
+          console.error('Failed to fetch orders:', err);
+          setLoadingOrders(false);
+        });
+    }
+  }, [currentView, user?.id]);
+
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancelOrder = async (orderId: number) => {
+    if (!confirm('Are you sure you want to cancel this order?')) return;
+    setIsCancelling(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/orders/${orderId}/cancel`, {
+        method: 'PUT',
+      });
+      if (res.ok) {
+        alert('Order cancelled successfully!');
+        // Update local state to reflect cancellation
+        setOrders(prev => prev.map(o => o.Order_Id === orderId ? { ...o, Pymnt_Status: 'Cancelled', Dlvry_Status: 'Cancelled' } : o));
+        setActiveOrder((prev: any) => ({ ...prev, Pymnt_Status: 'Cancelled', Dlvry_Status: 'Cancelled' }));
+      } else {
+        alert('Failed to cancel order.');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('An error occurred while cancelling the order.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const orderTabs = ['All', 'To pay', 'To ship', 'To receive', 'To review'];
 
@@ -51,7 +96,7 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
 
       // Update local user state
       const updatedUser = { ...user, phone, address: fullAddress };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      localStorage.setItem('buyerUser', JSON.stringify(updatedUser));
       
       if (onUpdateUser) {
         onUpdateUser(updatedUser);
@@ -270,11 +315,109 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
     </>
   );
 
-  const renderMyOrders = () => (
-    <>
-      <h2 className="text-xl text-gray-800 mb-4 font-medium">My Orders</h2>
-      
-      {/* Tabs */}
+  const renderMyOrders = () => {
+    if (activeOrder) {
+      return (
+        <>
+          <div className="flex items-center gap-2 mb-6">
+            <button 
+              onClick={() => setActiveOrder(null)} 
+              className="text-gray-500 hover:text-lazada-orange flex items-center text-sm font-medium transition-colors"
+            >
+              <ChevronLeft size={16} className="mr-1" /> Back to My Orders
+            </button>
+          </div>
+          
+          <h2 className="text-xl text-gray-800 mb-4 font-medium">Order Details</h2>
+          
+          <div className="bg-white p-6 border border-gray-200 rounded-sm mb-6 flex justify-between items-center">
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Order #{activeOrder.Order_Id}</p>
+              <p className="text-sm text-gray-800">Placed on {new Date(activeOrder.Order_Date).toLocaleDateString()}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-500 mb-1">Total Amount</p>
+              <p className="text-xl font-bold text-[#ff5000]">₱{parseFloat(activeOrder.Pymnt_Amount).toFixed(2)}</p>
+              
+              {activeOrder.Dlvry_Status !== 'Cancelled' && activeOrder.Dlvry_Status !== 'Delivered' && (
+                <button 
+                  onClick={() => handleCancelOrder(activeOrder.Order_Id)}
+                  disabled={isCancelling}
+                  className="mt-3 px-4 py-1.5 border border-gray-300 text-gray-600 rounded-sm text-xs font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {isCancelling ? 'CANCELLING...' : 'CANCEL ORDER'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white p-6 border border-gray-200 rounded-sm mb-6">
+            <h3 className="font-medium text-gray-800 mb-4 flex items-center gap-2">
+              <Truck size={20} className="text-[#1a9cb7]" /> Delivery Information
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Delivery Status</p>
+                  <p className="text-sm font-medium text-[#1a9cb7] flex items-center gap-2">
+                    <CheckCircle2 size={16} />
+                    <span className={activeOrder.Dlvry_Status === 'Cancelled' ? 'text-red-500' : ''}>
+                      {activeOrder.Dlvry_Status || 'Processing'}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Courier</p>
+                  <p className="text-sm text-gray-800">{activeOrder.Dlvry_Courier || 'Standard Delivery'}</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Tracking Number</p>
+                  <p className="text-sm text-gray-800 font-mono bg-gray-50 px-2 py-1 inline-block rounded-sm">{activeOrder.Dlvry_TrackingNumber || 'Pending'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Estimated Delivery</p>
+                  <p className="text-sm text-gray-800">{activeOrder.Dlvry_EstimatedDelivery ? new Date(activeOrder.Dlvry_EstimatedDelivery).toLocaleDateString() : 'Pending'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-sm overflow-hidden">
+            <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
+              <h3 className="font-medium text-gray-800 flex items-center gap-2">
+                <Package size={18} className="text-gray-500" /> Items in this Order
+              </h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {activeOrder.items && activeOrder.items.map((item: any, idx: number) => (
+                <div key={idx} className="p-5 flex gap-4">
+                  <div className="w-20 h-20 border border-gray-200 rounded-sm p-1 shrink-0 bg-white flex items-center justify-center">
+                    <img src={item.Prdct_Image_Url || 'https://via.placeholder.com/80'} alt={item.Prdct_Name} className="max-w-full max-h-full object-contain" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-gray-800 line-clamp-2">{item.Prdct_Name}</h4>
+                    <p className="text-xs text-gray-500 mt-1">Sold by: {item.Shop_Name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-800">₱{parseFloat(item.OItem_Price).toFixed(2)}</p>
+                    <p className="text-xs text-gray-500 mt-1">Qty: {item.OItem_Quantity}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <h2 className="text-xl text-gray-800 mb-4 font-medium">My Orders</h2>
+        
+        {/* Tabs */}
       <div className="flex border-b border-gray-200 mb-6">
         {orderTabs.map(tab => (
           <button
@@ -303,20 +446,85 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
       </div>
 
       {/* Order List */}
-      <div className="bg-white p-12 text-center border border-gray-200 rounded-sm flex flex-col items-center justify-center">
-        <div className="w-24 h-24 mb-4 opacity-50">
-          <img src="https://lzd-img-global.slatic.net/g/tps/tfs/TB1DgaEqQyWBuNjy0FpXXassXXa-200-200.png" alt="No orders" className="w-full h-full object-contain grayscale opacity-50" />
+      {loadingOrders ? (
+        <div className="bg-white p-12 text-center border border-gray-200 rounded-sm">
+          <p className="text-gray-500">Loading orders...</p>
         </div>
-        <p className="text-gray-500 font-medium">There are no orders placed yet.</p>
-        <button 
-          className="mt-4 px-8 py-2 bg-lazada-orange text-white rounded-sm font-medium hover:bg-[#e06633] transition-colors"
-          onClick={() => window.scrollTo(0,0)}
-        >
-          CONTINUE SHOPPING
-        </button>
-      </div>
+      ) : (() => {
+        const filteredOrders = orders.filter((order: any) => {
+          if (activeOrderTab === 'All') return true;
+          if (activeOrderTab === 'To pay') return order.Pymnt_Status === 'Pending' && order.Pymnt_Method !== 'cod';
+          if (activeOrderTab === 'To ship') return order.Dlvry_Status === 'Processing' || (order.Pymnt_Status === 'Pending' && order.Pymnt_Method === 'cod');
+          if (activeOrderTab === 'To receive') return order.Dlvry_Status === 'Shipped';
+          if (activeOrderTab === 'To review') return order.Dlvry_Status === 'Delivered';
+          return true;
+        });
+
+        return filteredOrders && filteredOrders.length > 0 ? (
+          <div className="space-y-4">
+            {filteredOrders.map((order: any) => (
+            <div 
+              key={order.Order_Id} 
+              className="bg-white border border-gray-200 rounded-sm overflow-hidden shadow-sm hover:border-lazada-orange cursor-pointer transition-colors"
+              onClick={() => setActiveOrder(order)}
+            >
+              <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex justify-between items-center text-sm">
+                <div>
+                  <span className="font-medium text-gray-800 mr-4 hover:underline">Order #{order.Order_Id}</span>
+                  <span className="text-gray-500">Placed on {new Date(order.Order_Date).toLocaleDateString()}</span>
+                </div>
+                <div>
+                  <span className={`px-2 py-1 rounded-sm text-xs font-bold ${
+                    order.Pymnt_Status === 'Pending' ? 'bg-orange-100 text-orange-600' : 
+                    order.Pymnt_Status === 'Cancelled' ? 'bg-red-100 text-red-600' : 
+                    'bg-green-100 text-green-600'
+                  }`}>
+                    {order.Pymnt_Status}
+                  </span>
+                </div>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {order.items && order.items.map((item: any, idx: number) => (
+                  <div key={idx} className="p-5 flex gap-4">
+                    <div className="w-20 h-20 border border-gray-200 rounded-sm p-1 shrink-0 bg-white flex items-center justify-center">
+                      <img src={item.Prdct_Image_Url || 'https://via.placeholder.com/80'} alt={item.Prdct_Name} className="max-w-full max-h-full object-contain" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium text-gray-800 line-clamp-2">{item.Prdct_Name}</h4>
+                      <p className="text-xs text-gray-500 mt-1">Sold by: {item.Shop_Name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-800">₱{parseFloat(item.OItem_Price).toFixed(2)}</p>
+                      <p className="text-xs text-gray-500 mt-1">Qty: {item.OItem_Quantity}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-gray-50 px-5 py-4 border-t border-gray-200 flex justify-end items-center gap-4">
+                <span className="text-sm text-gray-600">Total Amount:</span>
+                <span className="text-xl font-medium text-[#ff5000]">₱{parseFloat(order.Pymnt_Amount).toFixed(2)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white p-12 text-center border border-gray-200 rounded-sm flex flex-col items-center justify-center">
+          <div className="w-24 h-24 mb-4 opacity-50">
+            <img src="https://lzd-img-global.slatic.net/g/tps/tfs/TB1DgaEqQyWBuNjy0FpXXassXXa-200-200.png" alt="No orders" className="w-full h-full object-contain grayscale opacity-50" />
+          </div>
+          <p className="text-gray-500 font-medium">There are no orders placed yet.</p>
+          <button 
+            className="mt-4 px-8 py-2 bg-lazada-orange text-white rounded-sm font-medium hover:bg-[#e06633] transition-colors"
+            onClick={() => window.scrollTo(0,0)}
+          >
+            CONTINUE SHOPPING
+          </button>
+        </div>
+      );
+    })()}
     </>
   );
+};
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 flex gap-8">

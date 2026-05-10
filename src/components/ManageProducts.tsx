@@ -4,9 +4,10 @@ import { ChevronDown, Search, Info, Plus, ChevronRight, Inbox, Edit, Trash2 } fr
 interface ManageProductsProps {
   onNavigate: (page: string) => void;
   user: any;
+  onEditProduct?: (product: any) => void;
 }
 
-export default function ManageProducts({ onNavigate, user }: ManageProductsProps) {
+export default function ManageProducts({ onNavigate, user, onEditProduct }: ManageProductsProps) {
   const [activeTab, setActiveTab] = useState('All');
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,12 @@ export default function ManageProducts({ onNavigate, user }: ManageProductsProps
       }
     } catch (error) {
       console.error('Delete error:', error);
+    }
+  };
+
+  const handleEdit = async (product: any) => {
+    if (onEditProduct) {
+      onEditProduct(product);
     }
   };
 
@@ -154,7 +161,11 @@ export default function ManageProducts({ onNavigate, user }: ManageProductsProps
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <button className="text-blue-600 hover:text-blue-800 transition-colors" title="Edit">
+                        <button 
+                          onClick={() => handleEdit(product)}
+                          className="text-blue-600 hover:text-blue-800 transition-colors" 
+                          title="Edit Price"
+                        >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button 

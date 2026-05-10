@@ -5,12 +5,13 @@ import { Product } from '../data/mockData';
 interface ProductDetailProps {
   product: Product;
   onAddToCart: (product: Product, quantity: number) => void;
+  onBuyNow: (product: Product, quantity: number) => void;
 }
 
 const COLORS = ['#f36f36', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#84cc16'];
 const getBgColor = (name: string) => COLORS[name.charCodeAt(0) % COLORS.length];
 
-export default function ProductDetail({ product, onAddToCart }: ProductDetailProps) {
+export default function ProductDetail({ product, onAddToCart, onBuyNow }: ProductDetailProps) {
   const [quantity, setQuantity] = useState(1);
   const [imgError, setImgError] = useState(false);
 
@@ -136,7 +137,7 @@ export default function ProductDetail({ product, onAddToCart }: ProductDetailPro
             <div className="flex flex-col sm:flex-row gap-3 mt-auto pt-6">
               <button 
                 className="flex-1 bg-orange-100 hover:bg-orange-200 text-lazada-orange active:scale-95 transition-all py-3 px-6 rounded text-sm font-medium border border-lazada-orange text-center"
-                onClick={() => {}}
+                onClick={() => onBuyNow(product, quantity)}
               >
                 Buy Now
               </button>

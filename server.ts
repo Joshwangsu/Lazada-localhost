@@ -129,6 +129,9 @@ app.post('/api/auth/signup', async (req, res) => {
       await pool.query('INSERT INTO Shop (Shop_UserId) VALUES (?)', [result.insertId]);
     }
 
+    // Every user gets a cart upon signup
+    await pool.query('INSERT INTO Cart (Cart_UserId) VALUES (?)', [result.insertId]);
+
     // Generate JWT token
     const token = jwt.sign({ id: result.insertId, role: role || 'buyer' }, JWT_SECRET, { expiresIn: '7d' });
 
@@ -139,7 +142,9 @@ app.post('/api/auth/signup', async (req, res) => {
         id: result.insertId,
         name,
         email,
-        role: role || 'buyer'
+        role: role || 'buyer',
+        address: '',
+        phone: ''
       }
     });
   } catch (error) {
@@ -170,6 +175,12 @@ app.post('/api/auth/login', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign({ id: user.User_Id, role: user.User_Role }, JWT_SECRET, { expiresIn: '7d' });
 
+    // Check if user has a cart, create if not (for users created before this feature)
+    const [carts]: any = await pool.query('SELECT Cart_Id FROM Cart WHERE Cart_UserId = ?', [user.User_Id]);
+    if (carts.length === 0) {
+      await pool.query('INSERT INTO Cart (Cart_UserId) VALUES (?)', [user.User_Id]);
+    }
+
     res.json({
       message: 'Logged in successfully',
       token,
@@ -177,7 +188,9 @@ app.post('/api/auth/login', async (req, res) => {
         id: user.User_Id,
         name: user.User_Name,
         email: user.User_Email,
-        role: user.User_Role
+        role: user.User_Role,
+        address: user.User_Address || '',
+        phone: user.User_Phone || ''
       }
     });
   } catch (error) {
@@ -292,6 +305,57 @@ app.delete('/api/products/:productId', async (req, res) => {
   }
 });
 
+app.put('/api/products/:productId', upload.single('image'), async (req: any, res: any) => {
+  try {
+    const { productId } = req.params;
+    const { price, stock, name, description, categoryId } = req.body;
+    
+    const updates = [];
+    const values = [];
+    
+    if (price !== undefined) {
+      updates.push('Prdct_Price = ?');
+      values.push(parseFloat(price));
+    }
+    if (stock !== undefined) {
+      updates.push('Prdct_Stock_Qty = ?');
+      values.push(parseInt(stock));
+    }
+    if (name !== undefined) {
+      updates.push('Prdct_Name = ?');
+      values.push(name);
+    }
+    if (description !== undefined) {
+      updates.push('Prdct_Description = ?');
+      values.push(description);
+    }
+    if (categoryId !== undefined) {
+      updates.push('Prdct_CtgryId = ?');
+      values.push(parseInt(categoryId));
+    }
+    
+    if (req.file) {
+      const imageUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+      updates.push('Prdct_Image_Url = ?');
+      values.push(imageUrl);
+    }
+    
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    
+    values.push(productId);
+    
+    await pool.query(
+      `UPDATE Product SET ${updates.join(', ')} WHERE Prdct_Id = ?`,
+      values
+    );
+    
+    res.json({ message: 'Product updated successfully' });
+  } catch (error) {
+    console.error('Update product error:', error);
+    res.status(500).json({ error: 'Failed to update product' });
+  }
+});
+
 app.get('/api/categories', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM Category');
@@ -299,6 +363,117 @@ app.get('/api/categories', async (req, res) => {
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
+
+// --- CART ROUTES ---
+
+app.get('/api/cart/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Find cart for user
+    const [carts]: any = await pool.query('SELECT Cart_Id FROM Cart WHERE Cart_UserId = ?', [userId]);
+    if (carts.length === 0) return res.json([]);
+    const cartId = carts[0].Cart_Id;
+
+    // Fetch items with product details
+    const [items]: any = await pool.query(
+      `SELECT ci.CItem_Id as id, ci.CItem_Quantity as quantity, 
+              p.Prdct_Id as productId, p.Prdct_Name as name, p.Prdct_Price as price, p.Prdct_Image_Url as image
+       FROM Cart_Item ci
+       JOIN Product p ON ci.CItem_PrdctId = p.Prdct_Id
+       WHERE ci.CItem_CartId = ?`,
+      [cartId]
+    );
+
+    // Map to frontend format
+    const formattedItems = items.map((item: any) => ({
+      id: item.id.toString(),
+      product: {
+        id: item.productId.toString(),
+        name: item.name,
+        price: parseFloat(item.price),
+        image: item.image
+      },
+      quantity: item.quantity,
+      isSelected: true // Default to selected in DB-synced cart
+    }));
+
+    res.json(formattedItems);
+  } catch (error) {
+    console.error('Fetch cart error:', error);
+    res.status(500).json({ error: 'Failed to fetch cart' });
+  }
+});
+
+app.post('/api/cart/add', async (req, res) => {
+  try {
+    const { userId, productId, quantity } = req.body;
+    
+    // Find cart
+    const [carts]: any = await pool.query('SELECT Cart_Id FROM Cart WHERE Cart_UserId = ?', [userId]);
+    if (carts.length === 0) return res.status(404).json({ error: 'Cart not found' });
+    const cartId = carts[0].Cart_Id;
+
+    // Check if item already in cart
+    const [existing]: any = await pool.query(
+      'SELECT CItem_Id, CItem_Quantity FROM Cart_Item WHERE CItem_CartId = ? AND CItem_PrdctId = ?',
+      [cartId, productId]
+    );
+
+    if (existing.length > 0) {
+      await pool.query(
+        'UPDATE Cart_Item SET CItem_Quantity = CItem_Quantity + ? WHERE CItem_Id = ?',
+        [quantity || 1, existing[0].CItem_Id]
+      );
+    } else {
+      await pool.query(
+        'INSERT INTO Cart_Item (CItem_CartId, CItem_PrdctId, CItem_Quantity) VALUES (?, ?, ?)',
+        [cartId, productId, quantity || 1]
+      );
+    }
+
+    res.json({ message: 'Item added to cart' });
+  } catch (error) {
+    console.error('Add to cart error:', error);
+    res.status(500).json({ error: 'Failed to add to cart' });
+  }
+});
+
+app.put('/api/cart/update', async (req, res) => {
+  try {
+    const { userId, productId, quantity } = req.body;
+    const [carts]: any = await pool.query('SELECT Cart_Id FROM Cart WHERE Cart_UserId = ?', [userId]);
+    if (carts.length === 0) return res.status(404).json({ error: 'Cart not found' });
+    const cartId = carts[0].Cart_Id;
+
+    await pool.query(
+      'UPDATE Cart_Item SET CItem_Quantity = ? WHERE CItem_CartId = ? AND CItem_PrdctId = ?',
+      [quantity, cartId, productId]
+    );
+    res.json({ message: 'Cart updated' });
+  } catch (error) {
+    console.error('Update cart error:', error);
+    res.status(500).json({ error: 'Failed to update cart' });
+  }
+});
+
+app.delete('/api/cart/remove', async (req, res) => {
+  try {
+    const { userId, productId } = req.query;
+    const [carts]: any = await pool.query('SELECT Cart_Id FROM Cart WHERE Cart_UserId = ?', [userId]);
+    if (carts.length === 0) return res.status(404).json({ error: 'Cart not found' });
+    const cartId = carts[0].Cart_Id;
+
+    await pool.query(
+      'DELETE FROM Cart_Item WHERE CItem_CartId = ? AND CItem_PrdctId = ?',
+      [cartId, productId]
+    );
+    res.json({ message: 'Item removed' });
+  } catch (error) {
+    console.error('Remove cart item error:', error);
+    res.status(500).json({ error: 'Failed to remove item' });
   }
 });
 
@@ -324,15 +499,91 @@ app.post('/api/orders', async (req, res) => {
     }
 
     // Create payment record
-    await pool.query(
+    const [paymentResult]: any = await pool.query(
       'INSERT INTO Payment (Pymnt_OrderId, Pymnt_Method, Pymnt_Status, Pymnt_Amount) VALUES (?, ?, ?, ?)',
       [orderId, paymentMethod || 'cod', 'Pending', total || 0]
     );
+    const paymentId = paymentResult.insertId;
+
+    // Create delivery record
+    const estimatedDelivery = new Date();
+    estimatedDelivery.setDate(estimatedDelivery.getDate() + 5); // 5 days from now
+
+    await pool.query(
+      'INSERT INTO Delivery (Dlvry_PymntId, Dlvry_Status, Dlvry_Courier, Dlvry_TrackingNumber, Dlvry_EstimatedDelivery) VALUES (?, ?, ?, ?, ?)',
+      [paymentId, 'Processing', 'J&T Express', 'JT' + Math.floor(Math.random() * 1000000000), estimatedDelivery]
+    );
+
+    // Clear cart after order
+    const [carts]: any = await pool.query('SELECT Cart_Id FROM Cart WHERE Cart_UserId = ?', [userId]);
+    if (carts.length > 0) {
+      const cartId = carts[0].Cart_Id;
+      // We only clear the items that were actually ordered
+      for (const item of items) {
+        await pool.query('DELETE FROM Cart_Item WHERE CItem_CartId = ? AND CItem_PrdctId = ?', [cartId, item.productId]);
+      }
+    }
 
     res.status(201).json({ message: 'Order placed successfully', orderId });
   } catch (error) {
     console.error('Place order error:', error);
     res.status(500).json({ error: 'Failed to place order' });
+  }
+});
+
+app.get('/api/orders', async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    if (!userId) return res.status(400).json({ error: 'User ID is required' });
+
+    // Fetch orders for user with delivery details
+    const [orders]: any = await pool.query(
+      `SELECT o.Order_Id, o.Order_Date, p.Pymnt_Amount, p.Pymnt_Status, p.Pymnt_Method,
+              d.Dlvry_Status, d.Dlvry_Courier, d.Dlvry_TrackingNumber, d.Dlvry_EstimatedDelivery 
+       FROM \`Order\` o 
+       LEFT JOIN Payment p ON o.Order_Id = p.Pymnt_OrderId 
+       LEFT JOIN Delivery d ON p.Pymnt_Id = d.Dlvry_PymntId
+       WHERE o.Order_UserId = ? 
+       ORDER BY o.Order_Date DESC`,
+      [userId]
+    );
+
+    // Fetch items for each order
+    for (let order of orders) {
+      const [items]: any = await pool.query(
+        'SELECT oi.OItem_Quantity, oi.OItem_Price, pr.Prdct_Name, pr.Prdct_Image_Url, s.Shop_Id, u.User_Name as Shop_Name FROM Order_Item oi JOIN Product pr ON oi.OItem_PrdctId = pr.Prdct_Id JOIN Shop s ON pr.Prdct_ShopId = s.Shop_Id JOIN User u ON s.Shop_UserId = u.User_Id WHERE oi.OItem_OrderId = ?',
+        [order.Order_Id]
+      );
+      order.items = items;
+    }
+
+    res.json(orders);
+  } catch (error) {
+    console.error('Fetch orders error:', error);
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+app.put('/api/orders/:id/cancel', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    
+    // Check if order exists and is not already cancelled
+    const [orders]: any = await pool.query('SELECT Order_Id FROM `Order` WHERE Order_Id = ?', [orderId]);
+    if (orders.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+    // Find the payment ID for the order
+    const [payments]: any = await pool.query('SELECT Pymnt_Id FROM Payment WHERE Pymnt_OrderId = ?', [orderId]);
+    if (payments.length > 0) {
+      const paymentId = payments[0].Pymnt_Id;
+      await pool.query('UPDATE Payment SET Pymnt_Status = ? WHERE Pymnt_Id = ?', ['Cancelled', paymentId]);
+      await pool.query('UPDATE Delivery SET Dlvry_Status = ? WHERE Dlvry_PymntId = ?', ['Cancelled', paymentId]);
+    }
+    
+    res.json({ message: 'Order cancelled successfully' });
+  } catch (error) {
+    console.error('Cancel order error:', error);
+    res.status(500).json({ error: 'Failed to cancel order' });
   }
 });
 

@@ -45,20 +45,48 @@ export default function App() {
         localStorage.removeItem('buyerUser');
       }
     }
-
-    // Load cart from local storage if exists
-    const storedCart = localStorage.getItem('cartItems');
-    if (storedCart) {
-      try {
-        setCartItems(JSON.parse(storedCart));
-      } catch (e) {}
-    }
   }, []);
 
-  // Sync cart to localstorage
+  const fetchCart = (userId: number) => {
+    fetch(`http://localhost:5000/api/cart/${userId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setCartItems(prev => {
+            // Merge database items with current selection state
+            return data.map((newItem: CartItemType) => {
+              const existingItem = prev.find(i => i.product.id === newItem.product.id);
+              return {
+                ...newItem,
+                isSelected: existingItem ? existingItem.isSelected : true
+              };
+            });
+          });
+        }
+      })
+      .catch(err => console.error('Failed to fetch cart', err));
+  };
+
   useEffect(() => {
-    localStorage.setItem('cartItems', JSON.stringify(cartItems));
-  }, [cartItems]);
+    if (user?.id) {
+      fetchCart(user.id);
+    } else {
+      // Load cart from local storage if guest
+      const storedCart = localStorage.getItem('cartItems');
+      if (storedCart) {
+        try {
+          setCartItems(JSON.parse(storedCart));
+        } catch (e) {}
+      }
+    }
+  }, [user?.id]);
+
+  // Sync guest cart to localstorage only when not logged in
+  useEffect(() => {
+    if (!user) {
+      localStorage.setItem('cartItems', JSON.stringify(cartItems));
+    }
+  }, [cartItems, user]);
 
   const handleProductClick = (product: Product) => {
     setView({ type: 'product', product });
@@ -66,27 +94,86 @@ export default function App() {
   };
 
   const handleAddToCart = (product: Product, quantity: number) => {
+    if (!user) {
+      setAuthModal('login');
+      // Still allow adding to local cart for guests before login
+      setCartItems(prev => {
+        const existingItemIndex = prev.findIndex(item => item.product.id === product.id);
+        if (existingItemIndex >= 0) {
+          const newCart = [...prev];
+          newCart[existingItemIndex].quantity += quantity;
+          return newCart;
+        } else {
+          return [...prev, {
+            id: Math.random().toString(36).substr(2, 9),
+            product,
+            quantity,
+            isSelected: true
+          }];
+        }
+      });
+      return;
+    }
+
+    // Call backend for logged in user
+    fetch('http://localhost:5000/api/cart/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: user.id, productId: product.id, quantity })
+    })
+    .then(res => {
+      if (res.ok) {
+        fetchCart(user.id);
+        alert(`Added ${quantity} x ${product.name} to cart!`);
+      }
+    })
+    .catch(err => console.error('Add to cart error', err));
+  };
+
+  const handleBuyNow = (product: Product, quantity: number) => {
+    if (!user) {
+      setAuthModal('login');
+      return;
+    }
+    
     setCartItems(prev => {
-      // Check if product already exists
       const existingItemIndex = prev.findIndex(item => item.product.id === product.id);
+      const newCart = prev.map(item => ({...item, isSelected: false}));
+      
       if (existingItemIndex >= 0) {
-        const newCart = [...prev];
         newCart[existingItemIndex].quantity += quantity;
-        return newCart;
+        newCart[existingItemIndex].isSelected = true;
       } else {
-        return [...prev, {
+        newCart.push({
           id: Math.random().toString(36).substr(2, 9),
           product,
           quantity,
           isSelected: true
-        }];
+        });
       }
+      return newCart;
     });
-    alert(`Added ${quantity} x ${product.name} to cart!`);
+    
+    setView({ type: 'checkout' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const updateCartItemQuantity = (id: string, newQuantity: number) => {
-    setCartItems(prev => prev.map(item => item.id === id ? { ...item, quantity: Math.max(1, newQuantity) } : item));
+    const quantity = Math.max(1, newQuantity);
+    if (user) {
+      const item = cartItems.find(i => i.id === id);
+      if (item) {
+        fetch('http://localhost:5000/api/cart/update', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, productId: item.product.id, quantity })
+        })
+        .then(() => fetchCart(user.id))
+        .catch(err => console.error('Update quantity error', err));
+      }
+    } else {
+      setCartItems(prev => prev.map(item => item.id === id ? { ...item, quantity } : item));
+    }
   };
 
   const toggleCartItemSelection = (id: string) => {
@@ -98,7 +185,18 @@ export default function App() {
   };
 
   const removeCartItem = (id: string) => {
-    setCartItems(prev => prev.filter(item => item.id !== id));
+    if (user) {
+      const item = cartItems.find(i => i.id === id);
+      if (item) {
+        fetch(`http://localhost:5000/api/cart/remove?userId=${user.id}&productId=${item.product.id}`, {
+          method: 'DELETE'
+        })
+        .then(() => fetchCart(user.id))
+        .catch(err => console.error('Remove item error', err));
+      }
+    } else {
+      setCartItems(prev => prev.filter(item => item.id !== id));
+    }
   };
 
   const removeSelectedItems = () => {
@@ -111,8 +209,10 @@ export default function App() {
 
   const handleLogout = () => {
     setUser(null);
+    setCartItems([]);
     localStorage.removeItem('buyerUser');
     localStorage.removeItem('buyerToken');
+    localStorage.removeItem('cartItems');
   };
 
   const [regularProducts, setRegularProducts] = useState<Product[]>([]);
@@ -157,6 +257,7 @@ export default function App() {
           <SellerCenter onBackToMain={() => setView({ type: 'home' })} onLogout={() => {
             localStorage.removeItem('sellerUser');
             localStorage.removeItem('sellerToken');
+            setView({ type: 'seller' }); // Re-render triggers SellerLanding
           }} user={sellerUser} />
         ) : (
           <SellerLanding onBackToMain={() => setView({ type: 'home' })} onLoginClick={() => setAuthModal('login')} onSuccess={handleAuthSuccess} />
@@ -219,7 +320,7 @@ export default function App() {
           </div>
         )}
         {view.type === 'product' && (
-          <ProductDetail product={view.product} onAddToCart={handleAddToCart} />
+          <ProductDetail product={view.product} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} />
         )}
         {view.type === 'account' && (
           <UserAccount user={user} onUpdateUser={handleAuthSuccess} />
@@ -235,6 +336,10 @@ export default function App() {
             recommendedProducts={regularProducts} 
             onProductClick={handleProductClick}
             onCheckout={() => {
+              if (!user) {
+                setAuthModal('login');
+                return;
+              }
               if (cartItems.filter(i => i.isSelected).length === 0) {
                 alert('Please select items to checkout.');
                 return;
@@ -251,7 +356,8 @@ export default function App() {
             user={user}
             onBack={() => setView({ type: 'cart' })}
             onOrderPlaced={() => {
-              removeSelectedItems();
+              if (user) fetchCart(user.id);
+              else removeSelectedItems();
               setView({ type: 'home' });
             }}
           />

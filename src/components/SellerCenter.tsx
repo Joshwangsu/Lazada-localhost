@@ -42,6 +42,7 @@ export default function SellerCenter({ onBackToMain, onLogout, user }: SellerCen
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showBanner, setShowBanner] = useState(true);
   const [activePage, setActivePage] = useState('dashboard');
+  const [editingProduct, setEditingProduct] = useState<any>(null);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     'products': true,
     'common-tools': false
@@ -49,9 +50,17 @@ export default function SellerCenter({ onBackToMain, onLogout, user }: SellerCen
 
   const handleNavigate = (page: string) => {
     setActivePage(page);
+    if (page !== 'edit-product') {
+      setEditingProduct(null);
+    }
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
     }
+  };
+
+  const handleEditProduct = (product: any) => {
+    setEditingProduct(product);
+    handleNavigate('edit-product');
   };
 
   const toggleExpanded = (id: string, e?: React.MouseEvent) => {
@@ -323,8 +332,9 @@ export default function SellerCenter({ onBackToMain, onLogout, user }: SellerCen
 
         {/* Main Content Area Routing */}
         {activePage === 'dashboard' && <SellerDashboard onNavigate={handleNavigate} />}
-        {activePage === 'manage-products' && <ManageProducts onNavigate={handleNavigate} user={user} />}
+        {activePage === 'manage-products' && <ManageProducts onNavigate={handleNavigate} user={user} onEditProduct={handleEditProduct} />}
         {activePage === 'add-product' && <AddProduct onNavigate={handleNavigate} user={user} />}
+        {activePage === 'edit-product' && <AddProduct onNavigate={handleNavigate} user={user} editProduct={editingProduct} />}
         {activePage === 'pickup-address' && <PickUpAddress onNavigate={handleNavigate} />}
       </div>
 
