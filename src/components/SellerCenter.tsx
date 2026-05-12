@@ -335,7 +335,7 @@ export default function SellerCenter({ onBackToMain, onLogout, user }: SellerCen
         {activePage === 'manage-products' && <ManageProducts onNavigate={handleNavigate} user={user} onEditProduct={handleEditProduct} />}
         {activePage === 'add-product' && <AddProduct onNavigate={handleNavigate} user={user} />}
         {activePage === 'edit-product' && <AddProduct onNavigate={handleNavigate} user={user} editProduct={editingProduct} />}
-        {activePage === 'pickup-address' && <PickUpAddress onNavigate={handleNavigate} />}
+        {activePage === 'pickup-address' && <PickUpAddress onNavigate={handleNavigate} user={user} />}
       </div>
 
       {/* RIGHT FLOATING MENU */}

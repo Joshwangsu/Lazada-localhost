@@ -4,7 +4,9 @@ async function testSignup() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: 'Test Seller',
+        firstName: 'Test',
+        middleName: 'M',
+        lastName: 'Seller',
         email: 'test_seller_' + Date.now() + '@test.com',
         password: 'password123',
         role: 'seller'

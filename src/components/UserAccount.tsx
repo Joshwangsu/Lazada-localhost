@@ -13,7 +13,9 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
   const [activeOrderTab, setActiveOrderTab] = useState('All');
 
   // Form states for Address
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [floor, setFloor] = useState('');
@@ -22,11 +24,65 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
   const [ward, setWard] = useState('');
   const [label, setLabel] = useState<'OFFICE' | 'HOME'>('HOME');
 
+  const [provincesList, setProvincesList] = useState<any[]>([]);
+  const [districtsList, setDistrictsList] = useState<any[]>([]);
+  const [wardsList, setWardsList] = useState<any[]>([]);
+  const [selectedProvinceCode, setSelectedProvinceCode] = useState('');
+  const [selectedDistrictCode, setSelectedDistrictCode] = useState('');
+
   const [isSaving, setIsSaving] = useState(false);
   
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [activeOrder, setActiveOrder] = useState<any | null>(null);
+
+  // Fetch Provinces on mount
+  useEffect(() => {
+    fetch('https://psgc.gitlab.io/api/provinces/')
+      .then(res => res.json())
+      .then(data => {
+        const sorted = data.sort((a: any, b: any) => a.name.localeCompare(b.name));
+        // Add Metro Manila manually since it's a region in PSGC but treated as a province in address forms
+        const ncr = { code: '130000000', name: 'Metro Manila', isRegion: true };
+        setProvincesList([ncr, ...sorted]);
+      })
+      .catch(err => console.error('Error fetching provinces:', err));
+  }, []);
+
+  // Fetch Cities when province changes
+  useEffect(() => {
+    if (!selectedProvinceCode) {
+      setDistrictsList([]);
+      setDistrict('');
+      return;
+    }
+    const isNCR = selectedProvinceCode === '130000000';
+    const url = isNCR 
+      ? `https://psgc.gitlab.io/api/regions/${selectedProvinceCode}/cities-municipalities/`
+      : `https://psgc.gitlab.io/api/provinces/${selectedProvinceCode}/cities-municipalities/`;
+    
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        setDistrictsList(data.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+      })
+      .catch(err => console.error('Error fetching cities:', err));
+  }, [selectedProvinceCode]);
+
+  // Fetch Barangays when city changes
+  useEffect(() => {
+    if (!selectedDistrictCode) {
+      setWardsList([]);
+      setWard('');
+      return;
+    }
+    fetch(`https://psgc.gitlab.io/api/cities-municipalities/${selectedDistrictCode}/barangays/`)
+      .then(res => res.json())
+      .then(data => {
+        setWardsList(data.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+      })
+      .catch(err => console.error('Error fetching barangays:', err));
+  }, [selectedDistrictCode]);
 
   useEffect(() => {
     if (currentView === 'orders' && user?.id) {
@@ -77,6 +133,9 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
       return;
     }
 
+    // Combine name
+    const combinedName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim();
+
     // Combine address parts
     const fullAddress = `${floor ? floor + ', ' : ''}${address}, ${ward}, ${district}, ${province}`;
     
@@ -88,14 +147,15 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
         body: JSON.stringify({
           id: user.id,
           phone: phone,
-          address: fullAddress
+          address: fullAddress,
+          name: combinedName || undefined
         })
       });
 
       if (!response.ok) throw new Error('Failed to save address');
 
       // Update local user state
-      const updatedUser = { ...user, phone, address: fullAddress };
+      const updatedUser = { ...user, phone, address: fullAddress, name: combinedName || user.name };
       localStorage.setItem('buyerUser', JSON.stringify(updatedUser));
       
       if (onUpdateUser) {
@@ -177,13 +237,35 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
           {/* Left Column */}
           <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">First Name</label>
+                <input 
+                  type="text" 
+                  placeholder="Juan" 
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">Middle Name (Optional)</label>
+                <input 
+                  type="text" 
+                  placeholder="Santos" 
+                  value={middleName}
+                  onChange={e => setMiddleName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
+                />
+              </div>
+            </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-2">Full Name</label>
+              <label className="block text-sm text-gray-600 mb-2">Last Name</label>
               <input 
                 type="text" 
-                placeholder="First Last" 
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
+                placeholder="Dela Cruz" 
+                value={lastName}
+                onChange={e => setLastName(e.target.value)}
                 className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
               />
             </div>
@@ -191,7 +273,7 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
               <label className="block text-sm text-gray-600 mb-2">Mobile Number</label>
               <input 
                 type="text" 
-                placeholder="Please enter your phone number" 
+                placeholder="09123456789" 
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
                 className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
@@ -201,17 +283,17 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
               <label className="block text-sm text-gray-600 mb-2">Address</label>
               <input 
                 type="text" 
-                placeholder="Please enter your address" 
+                placeholder="123 Rizal St." 
                 value={address}
                 onChange={e => setAddress(e.target.value)}
                 className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-2">Floor/Unit Number</label>
+              <label className="block text-sm text-gray-600 mb-2">Floor/Unit Number (Optional)</label>
               <input 
                 type="text" 
-                placeholder="Please enter your floor/unit number" 
+                placeholder="Unit 4B (Optional)" 
                 value={floor}
                 onChange={e => setFloor(e.target.value)}
                 className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
@@ -224,31 +306,44 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
             <div>
               <label className="block text-sm text-gray-600 mb-2">Province</label>
               <select 
-                value={province} 
-                onChange={e => setProvince(e.target.value)}
+                value={selectedProvinceCode} 
+                onChange={e => {
+                  const code = e.target.value;
+                  setSelectedProvinceCode(code);
+                  const name = provincesList.find(p => p.code === code)?.name || '';
+                  setProvince(name);
+                  // Reset child dropdowns
+                  setSelectedDistrictCode('');
+                  setDistrict('');
+                  setWard('');
+                }}
                 className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none text-gray-700 bg-white"
               >
                 <option value="" disabled>Please choose your province</option>
-                <option value="Metro Manila">Metro Manila</option>
-                <option value="Cebu">Cebu</option>
-                <option value="Davao del Sur">Davao del Sur</option>
-                <option value="Cavite">Cavite</option>
-                <option value="Laguna">Laguna</option>
+                {provincesList.map(p => (
+                  <option key={p.code} value={p.code}>{p.name}</option>
+                ))}
               </select>
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-2">District (City/Municipality)</label>
               <select 
-                value={district} 
-                onChange={e => setDistrict(e.target.value)}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none text-gray-700 bg-white"
+                value={selectedDistrictCode} 
+                onChange={e => {
+                  const code = e.target.value;
+                  setSelectedDistrictCode(code);
+                  const name = districtsList.find(d => d.code === code)?.name || '';
+                  setDistrict(name);
+                  // Reset child dropdown
+                  setWard('');
+                }}
+                disabled={!selectedProvinceCode}
+                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none text-gray-700 bg-white disabled:bg-gray-50"
               >
-                <option value="" disabled>Please choose your district</option>
-                <option value="Quezon City">Quezon City</option>
-                <option value="City of Manila">City of Manila</option>
-                <option value="Makati City">Makati City</option>
-                <option value="Cebu City">Cebu City</option>
-                <option value="Davao City">Davao City</option>
+                <option value="" disabled>{selectedProvinceCode ? 'Please choose your district' : 'Select a province first'}</option>
+                {districtsList.map(d => (
+                  <option key={d.code} value={d.code}>{d.name}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -256,14 +351,13 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
               <select 
                 value={ward} 
                 onChange={e => setWard(e.target.value)}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none text-gray-700 bg-white"
+                disabled={!selectedDistrictCode}
+                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none text-gray-700 bg-white disabled:bg-gray-50"
               >
-                <option value="" disabled>Please choose your ward</option>
-                <option value="Barangay Poblacion">Barangay Poblacion</option>
-                <option value="Barangay San Antonio">Barangay San Antonio</option>
-                <option value="Barangay Bagumbayan">Barangay Bagumbayan</option>
-                <option value="Barangay Bel-Air">Barangay Bel-Air</option>
-                <option value="Barangay Guadalupe">Barangay Guadalupe</option>
+                <option value="" disabled>{selectedDistrictCode ? 'Please choose your ward' : 'Select a district first'}</option>
+                {wardsList.map(w => (
+                  <option key={w.code} value={w.name}>{w.name}</option>
+                ))}
               </select>
             </div>
 

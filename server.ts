@@ -106,13 +106,16 @@ pool.getConnection()
 // Signup Route
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { firstName, middleName, lastName, email, password, role } = req.body;
     
     // Check if user already exists
     const [existingUsers]: any = await pool.query('SELECT * FROM User WHERE User_Email = ?', [email]);
     if (existingUsers.length > 0) {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
+
+    // Merge names
+    const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim();
 
     // Hash the password
     const salt = await bcrypt.genSalt(10);
@@ -121,7 +124,7 @@ app.post('/api/auth/signup', async (req, res) => {
     // Insert new user
     const [result]: any = await pool.query(
       'INSERT INTO User (User_Name, User_Email, User_Password, User_Role) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, role || 'buyer']
+      [fullName, email, hashedPassword, role || 'buyer']
     );
 
     // If role is seller, we should also create a shop for them
@@ -129,8 +132,11 @@ app.post('/api/auth/signup', async (req, res) => {
       await pool.query('INSERT INTO Shop (Shop_UserId) VALUES (?)', [result.insertId]);
     }
 
-    // Every user gets a cart upon signup
-    await pool.query('INSERT INTO Cart (Cart_UserId) VALUES (?)', [result.insertId]);
+    // Only buyers get a cart upon signup
+    const userRole = role || 'buyer';
+    if (userRole === 'buyer') {
+      await pool.query('INSERT INTO Cart (Cart_UserId) VALUES (?)', [result.insertId]);
+    }
 
     // Generate JWT token
     const token = jwt.sign({ id: result.insertId, role: role || 'buyer' }, JWT_SECRET, { expiresIn: '7d' });
@@ -140,7 +146,7 @@ app.post('/api/auth/signup', async (req, res) => {
       token,
       user: {
         id: result.insertId,
-        name,
+        name: fullName,
         email,
         role: role || 'buyer',
         address: '',
@@ -175,10 +181,12 @@ app.post('/api/auth/login', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign({ id: user.User_Id, role: user.User_Role }, JWT_SECRET, { expiresIn: '7d' });
 
-    // Check if user has a cart, create if not (for users created before this feature)
-    const [carts]: any = await pool.query('SELECT Cart_Id FROM Cart WHERE Cart_UserId = ?', [user.User_Id]);
-    if (carts.length === 0) {
-      await pool.query('INSERT INTO Cart (Cart_UserId) VALUES (?)', [user.User_Id]);
+    // Check if user has a cart, create if not (for users created before this feature), only for buyers
+    if (user.User_Role === 'buyer') {
+      const [carts]: any = await pool.query('SELECT Cart_Id FROM Cart WHERE Cart_UserId = ?', [user.User_Id]);
+      if (carts.length === 0) {
+        await pool.query('INSERT INTO Cart (Cart_UserId) VALUES (?)', [user.User_Id]);
+      }
     }
 
     res.json({
@@ -204,14 +212,22 @@ app.post('/api/auth/login', async (req, res) => {
 app.put('/api/user/profile', async (req, res) => {
   try {
     // We should ideally use JWT verification middleware here, but for simplicity we rely on body email/id
-    const { id, address, phone } = req.body;
+    const { id, address, phone, name } = req.body;
     
     if (!id) return res.status(400).json({ error: 'User ID is required' });
 
-    await pool.query(
-      'UPDATE User SET User_Address = ?, User_Phone = ? WHERE User_Id = ?',
-      [address, phone, id]
-    );
+    let query = 'UPDATE User SET User_Address = ?, User_Phone = ?';
+    let params = [address, phone];
+
+    if (name) {
+      query += ', User_Name = ?';
+      params.push(name);
+    }
+
+    query += ' WHERE User_Id = ?';
+    params.push(id);
+
+    await pool.query(query, params);
 
     res.json({ message: 'Profile updated successfully' });
   } catch (error) {

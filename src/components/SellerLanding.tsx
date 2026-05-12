@@ -40,12 +40,20 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [openStep, setOpenStep] = useState<number | null>(0);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authSuccess, setAuthSuccess] = useState<string | null>(null);
   
   // Local email/password state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    setAuthError(null);
+    if (authMode === 'signup') setAuthSuccess(null);
+  }, [authMode]);
 
   const handleGoogleLogin = async () => {
     setAuthError(null);
@@ -59,10 +67,38 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
     }
   };
 
+  const validateEmail = (email: string) => {
+    return String(email)
+      .toLowerCase()
+      .match(
+        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+      );
+  };
+
+  const validatePassword = (pass: string) => {
+    // Min 8 chars, at least one letter and one number
+    return pass.length >= 8 && /[a-zA-Z]/.test(pass) && /[0-9]/.test(pass);
+  };
+
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !name) {
-      setAuthError('Please fill in all fields');
+    if (!firstName || !lastName || !email || !password) {
+      setAuthError('Please fill in all required fields');
+      return;
+    }
+
+    if (firstName.length < 2 || lastName.length < 2) {
+      setAuthError('Name fields must be at least 2 characters');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setAuthError('Please enter a valid email address');
+      return;
+    }
+
+    if (!validatePassword(password)) {
+      setAuthError('Password must be at least 8 characters long and contain both letters and numbers');
       return;
     }
     
@@ -73,15 +109,15 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
       const response = await fetch('http://localhost:5000/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, role: 'seller' }),
+        body: JSON.stringify({ firstName, middleName, lastName, email, password, role: 'seller' }),
       });
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Signup failed');
 
-      localStorage.setItem('sellerToken', data.token);
-      localStorage.setItem('sellerUser', JSON.stringify(data.user));
-      onSuccess(data.user);
+      setAuthSuccess('Account created successfully! Please log in to continue.');
+      setAuthMode('login');
+      setPassword(''); // Clear password for security
     } catch (error: any) {
       setAuthError(error.message);
     } finally {
@@ -93,6 +129,11 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
     e.preventDefault();
     if (!email || !password) {
       setAuthError('Please fill in both email and password');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setAuthError('Please enter a valid email address');
       return;
     }
 
@@ -226,14 +267,34 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
                     </button>
                   </div>
 
-                  <form className="space-y-4 mb-2" onSubmit={handleEmailSignup}>
+                  <form className="space-y-3 mb-2" onSubmit={handleEmailSignup}>
+                    <div className="flex gap-3">
+                      <div className="flex-1 border border-gray-300 rounded overflow-hidden focus-within:border-blue-500 transition-colors">
+                        <input 
+                          type="text" 
+                          placeholder="First Name" 
+                          value={firstName}
+                          onChange={e => setFirstName(e.target.value)}
+                          className="w-full px-3 py-3 outline-none text-[14px]" 
+                        />
+                      </div>
+                      <div className="flex-1 border border-gray-300 rounded overflow-hidden focus-within:border-blue-500 transition-colors">
+                        <input 
+                          type="text" 
+                          placeholder="Middle (Opt)" 
+                          value={middleName}
+                          onChange={e => setMiddleName(e.target.value)}
+                          className="w-full px-3 py-3 outline-none text-[14px]" 
+                        />
+                      </div>
+                    </div>
                     <div className="flex border border-gray-300 rounded overflow-hidden focus-within:border-blue-500 transition-colors">
                       <input 
                         type="text" 
-                        placeholder="Your Name" 
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        className="flex-1 px-3 py-3 outline-none text-[15px]" 
+                        placeholder="Last Name" 
+                        value={lastName}
+                        onChange={e => setLastName(e.target.value)}
+                        className="flex-1 px-3 py-3 outline-none text-[14px]" 
                       />
                     </div>
                     <div className="flex border border-gray-300 rounded overflow-hidden focus-within:border-blue-500 transition-colors">
@@ -257,6 +318,7 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
                     </div>
 
                     {authError && <div className="text-red-500 text-sm">{authError}</div>}
+                    {authSuccess && <div className="bg-green-50 text-green-600 p-3 rounded text-sm font-medium">{authSuccess}</div>}
 
                     <button 
                       type="submit"
@@ -336,6 +398,7 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
                   </div>
 
                   {authError && <div className="text-red-500 text-sm mb-4">{authError}</div>}
+                  {authSuccess && <div className="bg-green-50 text-green-600 p-3 rounded mb-4 text-sm font-medium">{authSuccess}</div>}
 
                   <button 
                     disabled={loading}

@@ -2,11 +2,62 @@ import React, { useState } from 'react';
 
 interface PickUpAddressProps {
   onNavigate: (page: string) => void;
+  user?: any;
 }
 
-export default function PickUpAddress({ onNavigate }: PickUpAddressProps) {
+export default function PickUpAddress({ onNavigate, user }: PickUpAddressProps) {
   const [returnSame, setReturnSame] = useState(true);
   const [businessSame, setBusinessSame] = useState(true);
+  const [region, setRegion] = useState('');
+  const [addressDetails, setAddressDetails] = useState(user?.address || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!user?.id) {
+      alert('User session not found. Please log in again.');
+      return;
+    }
+
+    if (!addressDetails || !phone) {
+      alert('Please fill in both address details and phone number.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const fullAddress = region ? `${region}, ${addressDetails}` : addressDetails;
+      
+      const response = await fetch('http://localhost:5000/api/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: user.id,
+          address: fullAddress,
+          phone: phone
+        }),
+      });
+
+      if (response.ok) {
+        // Update local storage to reflect changes
+        const updatedUser = { ...user, address: fullAddress, phone: phone };
+        localStorage.setItem('sellerUser', JSON.stringify(updatedUser));
+        
+        alert('Pick-Up Address and Phone Number saved successfully!');
+        onNavigate('dashboard');
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to save: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error saving address:', error);
+      alert('An error occurred while saving. Please check your connection.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#f2f4f8] overflow-y-auto font-sans">
@@ -34,11 +85,15 @@ export default function PickUpAddress({ onNavigate }: PickUpAddressProps) {
               <label className="block text-[13px] font-medium text-gray-800 mb-2">
                 <span className="text-red-500 mr-1">*</span>Region/City/District
               </label>
-              <select className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-400 outline-none focus:border-blue-500 appearance-none bg-transparent">
-                <option value="" disabled selected>Region/City/District</option>
-                <option value="ncr">Metro Manila</option>
-                <option value="cebu">Cebu</option>
-                <option value="davao">Davao</option>
+              <select 
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 appearance-none bg-transparent"
+              >
+                <option value="" disabled>Region/City/District</option>
+                <option value="Metro Manila">Metro Manila</option>
+                <option value="Cebu">Cebu</option>
+                <option value="Davao">Davao</option>
               </select>
             </div>
 
@@ -48,9 +103,29 @@ export default function PickUpAddress({ onNavigate }: PickUpAddressProps) {
               </label>
               <input 
                 type="text" 
+                value={addressDetails}
+                onChange={(e) => setAddressDetails(e.target.value)}
                 placeholder="Address Details: Number, Street, Landmark, etc." 
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500"
               />
+            </div>
+
+            <div>
+              <label className="block text-[13px] font-medium text-gray-800 mb-2">
+                <span className="text-red-500 mr-1">*</span>Phone Number
+              </label>
+              <div className="flex">
+                <span className="inline-flex items-center px-3 text-sm text-gray-500 bg-gray-50 border border-r-0 border-gray-300 rounded-l">
+                  +63
+                </span>
+                <input 
+                  type="tel" 
+                  value={phone.startsWith('+63') ? phone.slice(3) : phone}
+                  onChange={(e) => setPhone('+63' + e.target.value.replace(/\D/g, ''))}
+                  placeholder="9XXXXXXXXX" 
+                  className="w-full border border-gray-300 rounded-r px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -88,13 +163,11 @@ export default function PickUpAddress({ onNavigate }: PickUpAddressProps) {
         {/* Submit Button */}
         <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 flex justify-end">
           <button 
-            className="bg-[#1890ff] hover:bg-blue-600 text-white font-medium px-8 py-2 rounded text-sm transition-colors"
-            onClick={() => {
-              alert('Pick-Up Address saved successfully!');
-              onNavigate('dashboard');
-            }}
+            disabled={isSubmitting}
+            className={`bg-[#1890ff] hover:bg-blue-600 text-white font-medium px-8 py-2 rounded text-sm transition-colors ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={handleSubmit}
           >
-            Submit
+            {isSubmitting ? 'Saving...' : 'Submit'}
           </button>
         </div>
 
@@ -102,3 +175,4 @@ export default function PickUpAddress({ onNavigate }: PickUpAddressProps) {
     </div>
   );
 }
+
