@@ -17,6 +17,7 @@ export default function AddProduct({ onNavigate, user, editProduct }: AddProduct
   const [imagePreview, setImagePreview] = useState<string | null>(editProduct?.Prdct_Image_Url || null);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -37,9 +38,14 @@ export default function AddProduct({ onNavigate, user, editProduct }: AddProduct
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert("File is too large. Please upload an image smaller than 5MB.");
+        setErrors(prev => ({ ...prev, image: "Image must be smaller than 5MB" }));
         return;
       }
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.image;
+        return newErrors;
+      });
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -51,12 +57,26 @@ export default function AddProduct({ onNavigate, user, editProduct }: AddProduct
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    if (!name.trim()) newErrors.name = "Product name is required";
+    else if (name.length < 5) newErrors.name = "Product name must be at least 5 characters";
+    
+    if (!category) newErrors.category = "Please select a category";
+    
+    if (!price) newErrors.price = "Price is required";
+    else if (parseFloat(price) <= 0) newErrors.price = "Price must be greater than 0";
+    
+    if (stock && parseInt(stock) < 0) newErrors.stock = "Stock cannot be negative";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !price) {
-      alert("Product Name and Price are required.");
-      return;
-    }
+    
+    if (!validateForm()) return;
 
     try {
       setLoading(true);
@@ -167,6 +187,7 @@ export default function AddProduct({ onNavigate, user, editProduct }: AddProduct
                       <p>• Supported: JPG, PNG, WEBP</p>
                       <p>• Max size: 5MB</p>
                       <p>• Best ratio: 1:1 (Square)</p>
+                      {errors.image && <p className="text-red-500 font-medium mt-1">{errors.image}</p>}
                     </div>
                   </div>
                 </div>
@@ -179,15 +200,23 @@ export default function AddProduct({ onNavigate, user, editProduct }: AddProduct
                   <div className="relative">
                     <input 
                       type="text" 
-                      required
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        if (errors.name) setErrors(prev => {
+                          const { name, ...rest } = prev;
+                          return rest;
+                        });
+                      }}
                       maxLength={255}
                       placeholder="Ex. Nikon Coolpix A300 Digital Camera" 
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors pr-20"
+                      className={`w-full border rounded px-3 py-2 text-[14px] outline-none transition-colors pr-20 ${
+                        errors.name ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-[#1e61f9]'
+                      }`}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-gray-400">{name.length}/255</span>
                   </div>
+                  {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                 </div>
 
                 {/* Category */}
@@ -197,14 +226,23 @@ export default function AddProduct({ onNavigate, user, editProduct }: AddProduct
                   </label>
                   <select 
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors bg-white"
+                    onChange={(e) => {
+                      setCategory(e.target.value);
+                      if (errors.category) setErrors(prev => {
+                        const { category, ...rest } = prev;
+                        return rest;
+                      });
+                    }}
+                    className={`w-full border rounded px-3 py-2 text-[14px] outline-none transition-colors bg-white ${
+                      errors.category ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-[#1e61f9]'
+                    }`}
                   >
                     {categories.length === 0 && <option disabled>Loading categories...</option>}
                     {categories.map(c => (
                       <option key={c.Ctgry_Id} value={c.Ctgry_Id}>{c.Ctgry_Name}</option>
                     ))}
                   </select>
+                  {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
                 </div>
 
                 {/* Price and Stock */}
@@ -215,14 +253,22 @@ export default function AddProduct({ onNavigate, user, editProduct }: AddProduct
                     </label>
                     <input 
                       type="number" 
-                      required
                       min="0"
                       step="0.01"
                       value={price}
-                      onChange={(e) => setPrice(e.target.value)}
+                      onChange={(e) => {
+                        setPrice(e.target.value);
+                        if (errors.price) setErrors(prev => {
+                          const { price, ...rest } = prev;
+                          return rest;
+                        });
+                      }}
                       placeholder="0.00" 
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors"
+                      className={`w-full border rounded px-3 py-2 text-[14px] outline-none transition-colors ${
+                        errors.price ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-[#1e61f9]'
+                      }`}
                     />
+                    {errors.price && <p className="text-red-500 text-xs mt-1">{errors.price}</p>}
                   </div>
                   <div>
                     <label className="flex items-center gap-1 text-[13px] font-medium text-gray-800 mb-2">
@@ -232,10 +278,19 @@ export default function AddProduct({ onNavigate, user, editProduct }: AddProduct
                       type="number" 
                       min="0"
                       value={stock}
-                      onChange={(e) => setStock(e.target.value)}
+                      onChange={(e) => {
+                        setStock(e.target.value);
+                        if (errors.stock) setErrors(prev => {
+                          const { stock, ...rest } = prev;
+                          return rest;
+                        });
+                      }}
                       placeholder="0" 
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-[14px] outline-none focus:border-[#1e61f9] transition-colors"
+                      className={`w-full border rounded px-3 py-2 text-[14px] outline-none transition-colors ${
+                        errors.stock ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-[#1e61f9]'
+                      }`}
                     />
+                    {errors.stock && <p className="text-red-500 text-xs mt-1">{errors.stock}</p>}
                   </div>
                 </div>
 
