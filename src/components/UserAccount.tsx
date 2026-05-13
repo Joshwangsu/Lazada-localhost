@@ -29,6 +29,7 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
   const [wardsList, setWardsList] = useState<any[]>([]);
   const [selectedProvinceCode, setSelectedProvinceCode] = useState('');
   const [selectedDistrictCode, setSelectedDistrictCode] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [isSaving, setIsSaving] = useState(false);
   
@@ -127,11 +128,27 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
 
   const orderTabs = ['All', 'To pay', 'To ship', 'To receive', 'To review'];
 
+  const validateAddressForm = () => {
+    const newErrors: Record<string, string> = {};
+    if (!firstName.trim()) newErrors.firstName = "First name is required";
+    if (!lastName.trim()) newErrors.lastName = "Last name is required";
+    if (!phone || phone.length < 11) newErrors.phone = "Valid mobile number is required";
+    if (!address.trim()) newErrors.address = "Detailed address is required";
+    if (!province) newErrors.province = "Province is required";
+    if (!district) newErrors.district = "District/City is required";
+    if (!ward) newErrors.ward = "Ward/Barangay is required";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSaveAddress = async () => {
     if (!user || !user.id) {
       alert("User not logged in!");
       return;
     }
+
+    if (!validateAddressForm()) return;
 
     // Combine name
     const combinedName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}`.trim();
@@ -244,9 +261,18 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
                   type="text" 
                   placeholder="Juan" 
                   value={firstName}
-                  onChange={e => setFirstName(e.target.value)}
-                  className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
+                  onChange={e => {
+                    setFirstName(e.target.value);
+                    if (errors.firstName) setErrors(prev => {
+                      const { firstName, ...rest } = prev;
+                      return rest;
+                    });
+                  }}
+                  className={`w-full border rounded-sm px-3 py-2 text-sm outline-none transition-colors ${
+                    errors.firstName ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-lazada-orange'
+                  }`} 
                 />
+                {errors.firstName && <p className="text-red-500 text-[11px] mt-1">{errors.firstName}</p>}
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-2">Middle Name (Optional)</label>
@@ -265,9 +291,18 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
                 type="text" 
                 placeholder="Dela Cruz" 
                 value={lastName}
-                onChange={e => setLastName(e.target.value)}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
+                onChange={e => {
+                  setLastName(e.target.value);
+                  if (errors.lastName) setErrors(prev => {
+                    const { lastName, ...rest } = prev;
+                    return rest;
+                  });
+                }}
+                className={`w-full border rounded-sm px-3 py-2 text-sm outline-none transition-colors ${
+                  errors.lastName ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-lazada-orange'
+                }`} 
               />
+              {errors.lastName && <p className="text-red-500 text-[11px] mt-1">{errors.lastName}</p>}
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-2">Mobile Number</label>
@@ -275,9 +310,18 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
                 type="text" 
                 placeholder="09123456789" 
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
+                onChange={e => {
+                  setPhone(e.target.value.replace(/\D/g, ''));
+                  if (errors.phone) setErrors(prev => {
+                    const { phone, ...rest } = prev;
+                    return rest;
+                  });
+                }}
+                className={`w-full border rounded-sm px-3 py-2 text-sm outline-none transition-colors ${
+                  errors.phone ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-lazada-orange'
+                }`} 
               />
+              {errors.phone && <p className="text-red-500 text-[11px] mt-1">{errors.phone}</p>}
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-2">Address</label>
@@ -285,9 +329,18 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
                 type="text" 
                 placeholder="123 Rizal St." 
                 value={address}
-                onChange={e => setAddress(e.target.value)}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none" 
+                onChange={e => {
+                  setAddress(e.target.value);
+                  if (errors.address) setErrors(prev => {
+                    const { address, ...rest } = prev;
+                    return rest;
+                  });
+                }}
+                className={`w-full border rounded-sm px-3 py-2 text-sm outline-none transition-colors ${
+                  errors.address ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-lazada-orange'
+                }`} 
               />
+              {errors.address && <p className="text-red-500 text-[11px] mt-1">{errors.address}</p>}
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-2">Floor/Unit Number (Optional)</label>
@@ -317,13 +370,16 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
                   setDistrict('');
                   setWard('');
                 }}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none text-gray-700 bg-white"
+                className={`w-full border rounded-sm px-3 py-2 text-sm outline-none transition-colors text-gray-700 bg-white ${
+                  errors.province ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-lazada-orange'
+                }`}
               >
                 <option value="" disabled>Please choose your province</option>
                 {provincesList.map(p => (
                   <option key={p.code} value={p.code}>{p.name}</option>
                 ))}
               </select>
+              {errors.province && <p className="text-red-500 text-[11px] mt-1">{errors.province}</p>}
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-2">District (City/Municipality)</label>
@@ -338,13 +394,16 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
                   setWard('');
                 }}
                 disabled={!selectedProvinceCode}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none text-gray-700 bg-white disabled:bg-gray-50"
+                className={`w-full border rounded-sm px-3 py-2 text-sm outline-none transition-colors text-gray-700 bg-white disabled:bg-gray-50 ${
+                  errors.district ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-lazada-orange'
+                }`}
               >
                 <option value="" disabled>{selectedProvinceCode ? 'Please choose your district' : 'Select a province first'}</option>
                 {districtsList.map(d => (
                   <option key={d.code} value={d.code}>{d.name}</option>
                 ))}
               </select>
+              {errors.district && <p className="text-red-500 text-[11px] mt-1">{errors.district}</p>}
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-2">Ward (Barangay)</label>
@@ -352,13 +411,16 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
                 value={ward} 
                 onChange={e => setWard(e.target.value)}
                 disabled={!selectedDistrictCode}
-                className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm focus:border-lazada-orange outline-none text-gray-700 bg-white disabled:bg-gray-50"
+                className={`w-full border rounded-sm px-3 py-2 text-sm outline-none transition-colors text-gray-700 bg-white disabled:bg-gray-50 ${
+                  errors.ward ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-gray-300 focus:border-lazada-orange'
+                }`}
               >
                 <option value="" disabled>{selectedDistrictCode ? 'Please choose your ward' : 'Select a district first'}</option>
                 {wardsList.map(w => (
                   <option key={w.code} value={w.name}>{w.name}</option>
                 ))}
               </select>
+              {errors.ward && <p className="text-red-500 text-[11px] mt-1">{errors.ward}</p>}
             </div>
 
             <div className="pt-2">
