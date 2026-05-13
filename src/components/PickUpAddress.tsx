@@ -282,6 +282,7 @@ export default function PickUpAddress({ onNavigate, user }: PickUpAddressProps) 
                 </span>
                 <input 
                   type="tel" 
+                  maxLength={10}
                   value={phone.startsWith('+63') ? phone.slice(3) : phone}
                   onChange={(e) => {
                     setPhone('+63' + e.target.value.replace(/\D/g, ''));

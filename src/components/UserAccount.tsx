@@ -308,6 +308,7 @@ export default function UserAccount({ user, onUpdateUser }: UserAccountProps) {
               <label className="block text-sm text-gray-600 mb-2">Mobile Number</label>
               <input 
                 type="text" 
+                maxLength={11}
                 placeholder="09123456789" 
                 value={phone}
                 onChange={e => {
