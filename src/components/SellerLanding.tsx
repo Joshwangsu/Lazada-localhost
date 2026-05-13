@@ -9,6 +9,7 @@ import {
   Users, 
   Briefcase,
   ChevronRight,
+  Eye,
   EyeOff,
   MessageCircle,
   Percent,
@@ -49,9 +50,11 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
   const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   React.useEffect(() => {
     setAuthError(null);
+    setShowPassword(false);
     if (authMode === 'signup') setAuthSuccess(null);
   }, [authMode]);
 
@@ -308,13 +311,19 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
                     </div>
                     <div className="relative border border-gray-300 rounded overflow-hidden focus-within:border-blue-500 transition-colors">
                       <input 
-                        type="password" 
+                        type={showPassword ? "text" : "password"} 
                         placeholder="New Password" 
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         className="w-full px-3 py-3 outline-none text-[15px]" 
                       />
-                      <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600" size={18} />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600 focus:outline-none z-20"
+                      >
+                        {showPassword ? <Eye size={20} strokeWidth={1.5} /> : <EyeOff size={20} strokeWidth={1.5} />}
+                      </button>
                     </div>
 
                     {authError && <div className="text-red-500 text-sm">{authError}</div>}
@@ -387,13 +396,19 @@ export default function SellerLanding({ onBackToMain, onLoginClick, onSuccess }:
                     />
                     <div className="relative border border-gray-300 rounded focus-within:border-blue-500 bg-white transition-colors">
                       <input 
-                        type="password" 
+                        type={showPassword ? "text" : "password"} 
                         placeholder="Password" 
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         className="w-full px-4 py-3 outline-none text-[15px] bg-transparent" 
                       />
-                      <EyeOff className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600" size={18} />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-gray-600 focus:outline-none z-20"
+                      >
+                        {showPassword ? <Eye size={20} strokeWidth={1.5} /> : <EyeOff size={20} strokeWidth={1.5} />}
+                      </button>
                     </div>
                   </div>
 
